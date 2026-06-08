@@ -671,7 +671,7 @@ function generarPDFDato(data) {
     const bx = mg + (i%2)*(bw+8);
     const by = y + Math.floor(i/2)*18;
     doc.setFillColor(...b.col);
-    doc.roundedRect(bx, by, bw, 14, 2, 2, 'F');
+    doc.rect(bx, by, bw, 14, 'F');
     doc.setFontSize(12); doc.setFont('helvetica', 'bold');
     doc.text(b.val, bx+bw/2, by+7, {align:'center'});
     doc.setFontSize(6.5); doc.setFont('helvetica', 'normal');
@@ -750,7 +750,7 @@ function generarPDFDato(data) {
   // Detalle fondo reserva
   doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y += 7;
   doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('FONDO DE RESERVA', mg, y); y += 5;
-  doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,data.gastosReserva>0?22:16,2,2,'F');
+  const alturaReserva = data.gastosReserva>0 ? 22 : 16; doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,alturaReserva,'F');
   doc.setFontSize(8.5); doc.setFont('helvetica','normal');
   doc.text(`Saldo anterior: ${fmtN(data.reservaAnterior)}`, mg+3, y+5);
   doc.text(`+ Aporte mensual: ${fmtN(APORTE_RESERVA)}`, mg+3, y+11);
