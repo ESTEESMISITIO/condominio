@@ -7,478 +7,129 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
-
   :root {
-    --bg: #f5f2eb;
-    --paper: #fffdf8;
-    --ink: #1c1a16;
-    --ink-soft: #6b6558;
-    --accent: #2d5a27;
-    --accent-light: #e8f0e6;
-    --danger: #8b2e2e;
-    --danger-light: #f5e8e8;
-    --gold: #a0832a;
-    --gold-light: #fdf6e3;
-    --border: #ddd8cc;
-    --radius: 10px;
+    --bg: #f5f2eb; --paper: #fffdf8; --ink: #1c1a16; --ink-soft: #6b6558;
+    --accent: #2d5a27; --accent-light: #e8f0e6;
+    --danger: #8b2e2e; --danger-light: #f5e8e8;
+    --gold: #a0832a; --gold-light: #fdf6e3;
+    --blue: #1e4d7a; --blue-light: #e6eef5;
+    --border: #ddd8cc; --radius: 10px;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; padding: 0 0 80px; }
 
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    min-height: 100vh;
-    padding: 0 0 80px;
-  }
+  header { background: var(--ink); color: var(--bg); padding: 18px 20px 14px; position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 19px; }
+  header span { font-size: 11px; opacity: 0.5; font-weight: 300; }
 
-  header {
-    background: var(--ink);
-    color: var(--bg);
-    padding: 20px 20px 16px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  header h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 20px;
-    letter-spacing: 0.3px;
-  }
-
-  header span {
-    font-size: 12px;
-    opacity: 0.55;
-    font-weight: 300;
-  }
-
-  /* TABS */
-  .tabs {
-    display: flex;
-    background: var(--paper);
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    gap: 0;
-  }
-
-  .tab-btn {
-    flex: 1;
-    padding: 12px 8px;
-    border: none;
-    background: none;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--ink-soft);
-    cursor: pointer;
-    white-space: nowrap;
-    border-bottom: 2px solid transparent;
-    transition: all 0.2s;
-  }
-
-  .tab-btn.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-    background: var(--accent-light);
-  }
-
-  .tab-content { display: none; padding: 16px; }
+  .tabs { display: flex; background: var(--paper); border-bottom: 1px solid var(--border); }
+  .tab-btn { flex: 1; padding: 11px 4px; border: none; background: none; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; color: var(--ink-soft); cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--accent-light); }
+  .tab-content { display: none; padding: 14px; }
   .tab-content.active { display: block; }
 
-  /* CARDS */
-  .card {
-    background: var(--paper);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 14px;
-  }
+  .card { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+  .card-title { font-family: 'DM Serif Display', serif; font-size: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 7px; }
+  .card-title .icon { width: 20px; height: 20px; border-radius: 5px; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 11px; }
 
-  .card-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 15px;
-    margin-bottom: 12px;
-    color: var(--ink);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .card-title .icon {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    background: var(--accent-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-  }
-
-  /* FORM ELEMENTS */
-  label {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--ink-soft);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-  }
-
-  input[type="text"], input[type="number"], select, textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    background: var(--bg);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    color: var(--ink);
-    margin-bottom: 12px;
-    -webkit-appearance: none;
-  }
-
-  input:focus, select:focus, textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-    background: #fff;
-  }
-
-  textarea { resize: vertical; min-height: 70px; font-size: 14px; }
-
+  label { display: block; font-size: 10px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg); font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink); margin-bottom: 10px; -webkit-appearance: none; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); background: #fff; }
+  textarea { resize: vertical; min-height: 65px; font-size: 13px; }
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
   /* CASA ROW */
-  .casa-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    margin-bottom: 8px;
-  }
-
-  .casa-label {
-    font-weight: 600;
-    font-size: 14px;
-    min-width: 60px;
-  }
-
-  .casa-row input[type="number"] {
-    flex: 1;
-    margin-bottom: 0;
-    padding: 8px 10px;
-    font-size: 14px;
-  }
-
-  .toggle-pago {
-    display: flex;
-    gap: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-
-  .toggle-pago button {
-    border: none;
-    padding: 7px 11px;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    background: var(--bg);
-    color: var(--ink-soft);
-    font-family: 'DM Sans', sans-serif;
-    transition: all 0.15s;
-  }
-
-  .toggle-pago button.pagado.active {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  .toggle-pago button.pendiente.active {
-    background: var(--danger);
-    color: #fff;
-  }
+  .casa-row { display: flex; align-items: center; gap: 8px; padding: 9px 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; margin-bottom: 7px; }
+  .casa-label { font-weight: 700; font-size: 13px; min-width: 55px; }
+  .casa-row input[type="number"] { flex: 1; margin-bottom: 0; padding: 7px 9px; font-size: 13px; }
+  .toggle-pago { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+  .toggle-pago button { border: none; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; background: var(--bg); color: var(--ink-soft); font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .toggle-pago button.pagado.active { background: var(--accent); color: #fff; }
+  .toggle-pago button.pendiente.active { background: var(--danger); color: #fff; }
 
   /* GASTO ROW */
-  .gasto-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap: 8px;
-    align-items: end;
-    margin-bottom: 8px;
-  }
-
-  .gasto-row input { margin-bottom: 0; font-size: 13px; padding: 9px 10px; }
-
-  .btn-remove {
-    width: 34px;
-    height: 38px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    border-radius: 7px;
-    font-size: 16px;
-    cursor: pointer;
-    color: var(--danger);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
+  .gasto-row { display: grid; grid-template-columns: 1fr 100px 110px auto; gap: 6px; align-items: end; margin-bottom: 7px; }
+  .gasto-row input, .gasto-row select { margin-bottom: 0; font-size: 12px; padding: 8px 9px; }
+  .btn-remove { width: 32px; height: 36px; border: 1px solid var(--border); background: var(--bg); border-radius: 7px; font-size: 15px; cursor: pointer; color: var(--danger); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 
   /* BUTTONS */
-  .btn {
-    width: 100%;
-    padding: 13px;
-    border: none;
-    border-radius: var(--radius);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    margin-top: 4px;
-  }
-
-  .btn-primary {
-    background: var(--ink);
-    color: var(--bg);
-  }
-
-  .btn-secondary {
-    background: var(--accent-light);
-    color: var(--accent);
-    border: 1px solid #c0d4bc;
-  }
-
-  .btn-add {
-    background: none;
-    border: 1px dashed var(--border);
-    color: var(--ink-soft);
-    font-size: 13px;
-    padding: 9px;
-    margin-top: 2px;
-  }
-
-  .btn-pdf {
-    background: var(--accent);
-    color: white;
-  }
-
+  .btn { width: 100%; padding: 12px; border: none; border-radius: var(--radius); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; margin-top: 4px; }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-secondary { background: var(--accent-light); color: var(--accent); border: 1px solid #c0d4bc; }
+  .btn-add { background: none; border: 1px dashed var(--border); color: var(--ink-soft); font-size: 12px; padding: 8px; margin-top: 2px; }
+  .btn-pdf { background: var(--accent); color: white; }
   .btn:active { transform: scale(0.97); }
 
-  /* RESUMEN */
-  .resumen-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 14px;
-  }
+  /* RESUMEN BOXES */
+  .resumen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 12px; }
+  .resumen-box { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 10px; text-align: center; }
+  .resumen-box.accent { background: var(--accent-light); border-color: #c0d4bc; }
+  .resumen-box.gold { background: var(--gold-light); border-color: #e0ccaa; }
+  .resumen-box.blue { background: var(--blue-light); border-color: #b0c8e0; }
+  .resumen-box.danger { background: var(--danger-light); border-color: #e0b0b0; }
+  .resumen-val { font-family: 'DM Serif Display', serif; font-size: 19px; display: block; margin-bottom: 2px; }
+  .resumen-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ink-soft); }
 
-  .resumen-box {
-    background: var(--paper);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 12px;
-    text-align: center;
-  }
-
-  .resumen-box.accent {
-    background: var(--accent-light);
-    border-color: #c0d4bc;
-  }
-
-  .resumen-box.gold {
-    background: var(--gold-light);
-    border-color: #e0ccaa;
-  }
-
-  .resumen-box.danger {
-    background: var(--danger-light);
-    border-color: #e0b0b0;
-  }
-
-  .resumen-val {
-    font-family: 'DM Serif Display', serif;
-    font-size: 20px;
-    display: block;
-    margin-bottom: 3px;
-  }
-
-  .resumen-lbl {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    color: var(--ink-soft);
-  }
+  /* TABLA CASAS */
+  .tabla-casas { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
+  .tabla-casas th { background: var(--ink); color: var(--bg); padding: 7px 8px; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
+  .tabla-casas th.mes-header { background: var(--accent); font-size: 11px; letter-spacing: 0.5px; }
+  .tabla-casas th.left { text-align: left; }
+  .tabla-casas td { padding: 8px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .tabla-casas td.casa-nombre { font-weight: 700; font-size: 13px; }
+  .tabla-casas td.monto { text-align: right; font-weight: 600; }
+  .tabla-casas td.estado { text-align: center; }
+  .tabla-casas td.saldo { text-align: right; font-weight: 700; }
+  .tabla-casas tr:last-child td { border-bottom: none; }
+  .tag-pagado { background: var(--accent-light); color: var(--accent); padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .tag-pendiente { background: var(--danger-light); color: var(--danger); padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .saldo-ok { color: var(--accent); }
+  .saldo-mal { color: var(--danger); }
 
   /* ESTADO CASAS */
-  .estado-casa {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 11px 14px;
-    background: var(--paper);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 6px;
-  }
-
-  .estado-casa .nombre {
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .estado-casa .deuda-tag {
-    font-size: 12px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-weight: 600;
-  }
-
+  .estado-casa { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; background: var(--paper); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 5px; }
+  .estado-casa .nombre { font-weight: 700; font-size: 13px; }
+  .deuda-tag { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 700; }
   .tag-ok { background: var(--accent-light); color: var(--accent); }
   .tag-deuda { background: var(--danger-light); color: var(--danger); }
-  .tag-parcial { background: var(--gold-light); color: var(--gold); }
 
   /* HISTORIAL */
-  .historial-item {
-    background: var(--paper);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px;
-    margin-bottom: 10px;
-    cursor: pointer;
-  }
-
-  .historial-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .historial-mes {
-    font-family: 'DM Serif Display', serif;
-    font-size: 16px;
-  }
-
-  .historial-balance {
-    font-size: 13px;
-    font-weight: 600;
-  }
-
+  .historial-item { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px; margin-bottom: 9px; cursor: pointer; }
+  .historial-header { display: flex; justify-content: space-between; align-items: center; }
+  .historial-mes { font-family: 'DM Serif Display', serif; font-size: 15px; }
+  .historial-balance { font-size: 12px; font-weight: 700; }
   .historial-balance.pos { color: var(--accent); }
   .historial-balance.neg { color: var(--danger); }
-
-  .historial-detail {
-    display: none;
-    margin-top: 12px;
-    border-top: 1px solid var(--border);
-    padding-top: 10px;
-    font-size: 13px;
-    color: var(--ink-soft);
-    line-height: 1.7;
-  }
-
+  .historial-detail { display: none; margin-top: 11px; border-top: 1px solid var(--border); padding-top: 9px; font-size: 12px; color: var(--ink-soft); line-height: 1.7; }
   .historial-item.open .historial-detail { display: block; }
 
-  /* TOAST */
-  .toast {
-    position: fixed;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: var(--ink);
-    color: var(--bg);
-    padding: 10px 20px;
-    border-radius: 30px;
-    font-size: 13px;
-    font-weight: 500;
-    opacity: 0;
-    transition: all 0.3s;
-    pointer-events: none;
-    z-index: 999;
-    white-space: nowrap;
-  }
+  .toast { position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 9px 18px; border-radius: 30px; font-size: 12px; font-weight: 500; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999; white-space: nowrap; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-
-  .divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 12px 0;
-  }
-
-  .info-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    padding: 4px 0;
-    color: var(--ink-soft);
-  }
-
+  .divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+  .info-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; color: var(--ink-soft); }
   .info-row strong { color: var(--ink); }
-
-  .section-sub {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--ink-soft);
-    margin-bottom: 8px;
-    margin-top: 4px;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--ink-soft);
-    font-size: 14px;
-  }
-
-  .empty-state .emoji { font-size: 32px; display: block; margin-bottom: 10px; }
-
-  select option { font-size: 15px; }
-
-  .badge-count {
-    display: inline-block;
-    background: var(--danger);
-    color: white;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 10px;
-    margin-left: 4px;
-    vertical-align: middle;
-  }
+  .section-sub { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--ink-soft); margin-bottom: 7px; margin-top: 3px; }
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--ink-soft); font-size: 13px; }
+  .empty-state .emoji { font-size: 30px; display: block; margin-bottom: 9px; }
+  .badge-count { display: inline-block; background: var(--danger); color: white; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 10px; margin-left: 3px; vertical-align: middle; }
+  .imputar-tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; }
+  .imputar-oper { background: var(--blue-light); color: var(--blue); }
+  .imputar-reserva { background: var(--gold-light); color: var(--gold); }
 </style>
 </head>
 <body>
 
 <header>
-  <div>
-    <h1>🏡 Condominio</h1>
-  </div>
+  <div><h1>🏡 Condominio</h1></div>
   <span id="header-mes">–</span>
 </header>
 
 <div class="tabs">
-  <button class="tab-btn active" onclick="showTab('ingresar')">📋 Ingresar</button>
-  <button class="tab-btn" onclick="showTab('resumen')">📊 Resumen</button>
-  <button class="tab-btn" onclick="showTab('estado')">🏠 Estado</button>
-  <button class="tab-btn" onclick="showTab('historial')">📁 Historial</button>
+  <button class="tab-btn active" onclick="showTab('ingresar',this)">📋 Ingresar</button>
+  <button class="tab-btn" onclick="showTab('resumen',this)">📊 Resumen</button>
+  <button class="tab-btn" onclick="showTab('estado',this)">🏠 Estado</button>
+  <button class="tab-btn" onclick="showTab('historial',this)">📁 Historial</button>
 </div>
 
 <!-- ============ TAB: INGRESAR ============ -->
@@ -498,87 +149,76 @@
       </div>
       <div>
         <label>Año</label>
-        <input type="number" id="inp-anio" value="2025" min="2020" max="2040">
+        <input type="number" id="inp-anio" value="2026" min="2020" max="2040">
       </div>
     </div>
     <label>Vencimiento de pago</label>
-    <input type="text" id="inp-vencimiento" placeholder="ej: 15 de junio 2025">
+    <input type="text" id="inp-vencimiento" placeholder="ej: 15 de junio 2026">
   </div>
 
   <div class="card">
     <div class="card-title"><span class="icon">🏠</span> Pagos gastos comunes</div>
-    <p class="section-sub">Monto mensual por casa</p>
-    <div id="casas-container">
-      <!-- generado por JS -->
-    </div>
+    <p class="section-sub">Monto pagado por cada casa (cuota base: $20.000)</p>
+    <div id="casas-container"></div>
   </div>
 
   <div class="card">
     <div class="card-title"><span class="icon">💸</span> Gastos del período</div>
-    <p class="section-sub">Registra los gastos realizados (pueden ser del mes anterior)</p>
+    <p class="section-sub">Descripción · Monto · Imputar a</p>
     <div id="gastos-container"></div>
     <button class="btn btn-add" onclick="addGasto()">+ Agregar gasto</button>
   </div>
 
   <div class="card">
     <div class="card-title"><span class="icon">🏦</span> Fondo de reserva</div>
-    <label>Saldo inicial del fondo (arrastre mes anterior)</label>
-    <input type="number" id="inp-reserva" placeholder="ej: 60000" min="0">
-    <label>Aporte adicional a reserva este mes</label>
-    <input type="number" id="inp-reserva-aporte" placeholder="ej: 0" min="0" value="0">
+    <div class="info-row"><span>Aporte mensual fijo</span><strong>$45.000</strong></div>
+    <div style="margin-top:8px">
+      <label>Saldo acumulado anterior (se autocompleta)</label>
+      <input type="number" id="inp-reserva" placeholder="ej: 60000" min="0" value="0">
+    </div>
   </div>
 
   <div class="card">
     <div class="card-title"><span class="icon">📝</span> Avisos y notas</div>
-    <textarea id="inp-notas" placeholder="Ej: Se cotizó reparación de bomba de agua. Próxima reunión el 20 de junio."></textarea>
+    <textarea id="inp-notas" placeholder="Ej: Se reparó la reja. Próxima reunión el 20 de junio."></textarea>
   </div>
 
-  <div style="padding: 0 0 8px">
-    <button class="btn btn-primary" onclick="guardarMes()">💾 Guardar mes</button>
-  </div>
+  <button class="btn btn-primary" onclick="guardarMes()">💾 Guardar mes</button>
 </div>
 
 <!-- ============ TAB: RESUMEN ============ -->
 <div class="tab-content" id="tab-resumen">
   <div id="resumen-content">
-    <div class="empty-state">
-      <span class="emoji">📋</span>
-      Guarda los datos del mes para ver el resumen
-    </div>
+    <div class="empty-state"><span class="emoji">📋</span>Guarda los datos del mes para ver el resumen</div>
   </div>
 </div>
 
 <!-- ============ TAB: ESTADO ============ -->
 <div class="tab-content" id="tab-estado">
   <div id="estado-content">
-    <div class="empty-state">
-      <span class="emoji">🏠</span>
-      Sin datos aún
-    </div>
+    <div class="empty-state"><span class="emoji">🏠</span>Sin datos aún</div>
   </div>
 </div>
 
 <!-- ============ TAB: HISTORIAL ============ -->
 <div class="tab-content" id="tab-historial">
   <div id="historial-content">
-    <div class="empty-state">
-      <span class="emoji">📁</span>
-      No hay meses registrados
-    </div>
+    <div class="empty-state"><span class="emoji">📁</span>No hay meses registrados</div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-// ——— CONFIGURACIÓN ———
+// ——— CONFIG ———
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUu4gt3EhDCdpTDgpIOMIUI-pD0hMY5SXVlLcvaQBCcamTVpKOoUS4Bd_kJhBZurL2/exec';
 const CASAS = ['A','B','C','D','E'];
+const CUOTA_BASE = 20000;
+const APORTE_RESERVA = 45000;
 let gastoCounter = 0;
-
-// Cache local para no hacer fetch en cada operación
-let _historialCache = null;
-let _deudasCache = null;
+let _historialCache = {};
+let _saldosCasasCache = {}; // saldo neto acumulado por casa (puede ser negativo)
+let _reservaAcumuladaCache = 0;
 
 // ——— INIT ———
 document.addEventListener('DOMContentLoaded', async () => {
@@ -594,23 +234,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function cargarTodo() {
   try {
-    const [histRes, deudasRes] = await Promise.all([
+    const [histRes, saldosRes] = await Promise.all([
       fetch(`${SCRIPT_URL}?action=getAll`),
-      fetch(`${SCRIPT_URL}?action=getDeudas`)
+      fetch(`${SCRIPT_URL}?action=getSaldos`)
     ]);
     _historialCache = await histRes.json();
-    _deudasCache = await deudasRes.json();
-
-    // pre-rellenar reserva con el último mes guardado
-    const keys = Object.keys(_historialCache);
-    if (keys.length > 0) {
-      const ultimo = _historialCache[keys[keys.length - 1]];
-      document.getElementById('inp-reserva').value = ultimo.reservaFinal || 0;
-    }
+    const saldosData = await saldosRes.json();
+    _saldosCasasCache = saldosData.saldosCasas || {};
+    _reservaAcumuladaCache = saldosData.reservaAcumulada || 0;
+    document.getElementById('inp-reserva').value = _reservaAcumuladaCache;
   } catch(e) {
     showToast('⚠️ Sin conexión — modo offline');
     _historialCache = {};
-    _deudasCache = {};
+    _saldosCasasCache = {};
+    _reservaAcumuladaCache = 0;
   }
 }
 
@@ -621,22 +258,9 @@ function initCasas() {
     c.innerHTML += `
       <div class="casa-row">
         <span class="casa-label">Casa ${casa}</span>
-        <input type="number" id="monto-${casa}" placeholder="Monto $" min="0" value="20000">
-        <div class="toggle-pago">
-          <button class="pagado active" id="btn-pagado-${casa}" onclick="setPago('${casa}','pagado')">✓</button>
-          <button class="pendiente" id="btn-pendiente-${casa}" onclick="setPago('${casa}','pendiente')">✗</button>
-        </div>
+        <input type="number" id="monto-${casa}" placeholder="$" min="0" value="20000">
       </div>`;
   });
-}
-
-function setPago(casa, estado) {
-  document.getElementById(`btn-pagado-${casa}`).classList.toggle('active', estado === 'pagado');
-  document.getElementById(`btn-pendiente-${casa}`).classList.toggle('active', estado === 'pendiente');
-}
-
-function getPago(casa) {
-  return document.getElementById(`btn-pagado-${casa}`).classList.contains('active') ? 'pagado' : 'pendiente';
 }
 
 function addGasto() {
@@ -648,6 +272,10 @@ function addGasto() {
   div.innerHTML = `
     <input type="text" placeholder="Descripción" id="gdesc-${id}">
     <input type="number" placeholder="Monto $" id="gmonto-${id}" min="0">
+    <select id="gimput-${id}">
+      <option value="operacional">Operacional</option>
+      <option value="reserva">Fondo Reserva</option>
+    </select>
     <button class="btn-remove" onclick="removeGasto(${id})">×</button>`;
   c.appendChild(div);
 }
@@ -657,19 +285,17 @@ function removeGasto(id) {
   if (el) el.remove();
 }
 
-// ——— DATOS ———
+// ——— FORM DATA ———
 function getFormData() {
   const mes = document.getElementById('inp-mes').value;
   const anio = document.getElementById('inp-anio').value;
   const venc = document.getElementById('inp-vencimiento').value;
-  const reservaInicial = parseNum(document.getElementById('inp-reserva').value);
-  const reservaAporte = parseNum(document.getElementById('inp-reserva-aporte').value);
+  const reservaAnterior = parseNum(document.getElementById('inp-reserva').value);
   const notas = document.getElementById('inp-notas').value.trim();
 
   const casas = CASAS.map(c => ({
     casa: c,
-    monto: parseNum(document.getElementById(`monto-${c}`).value),
-    estado: getPago(c)
+    montoPagado: parseNum(document.getElementById(`monto-${c}`).value)
   }));
 
   const gastos = [];
@@ -677,20 +303,42 @@ function getFormData() {
     const id = row.id.replace('gasto-', '');
     const desc = document.getElementById(`gdesc-${id}`)?.value.trim();
     const monto = parseNum(document.getElementById(`gmonto-${id}`)?.value);
-    if (desc || monto > 0) gastos.push({ desc: desc || '(sin descripción)', monto });
+    const imputar = document.getElementById(`gimput-${id}`)?.value || 'operacional';
+    if (desc || monto > 0) gastos.push({ desc: desc || '(sin descripción)', monto, imputar });
   });
 
-  return { mes, anio, venc, casas, gastos, reservaInicial, reservaAporte, notas };
+  return { mes, anio, venc, casas, gastos, reservaAnterior, notas };
 }
 
 function parseNum(val) { return parseInt(val) || 0; }
 
-function calcBalance(data) {
-  const ingresoTotal = data.casas.reduce((s, c) => s + (c.estado === 'pagado' ? c.monto : 0), 0);
-  const gastoTotal = data.gastos.reduce((s, g) => s + g.monto, 0);
-  const balance = ingresoTotal - gastoTotal;
-  const reservaFinal = data.reservaInicial + data.reservaAporte + balance;
-  return { ingresoTotal, gastoTotal, balance, reservaFinal };
+// ——— CÁLCULO PRINCIPAL ———
+function calcBalance(data, saldosCasasAnteriores) {
+  // Calcular estado de cada casa basado en saldo neto acumulado
+  const casasCalc = data.casas.map(c => {
+    const saldoAnterior = saldosCasasAnteriores[c.casa] || 0;
+    const diferencia = c.montoPagado - CUOTA_BASE; // positivo = pagó de más, negativo = debe
+    const saldoNuevo = saldoAnterior + diferencia;
+    const pagado = saldoNuevo >= 0;
+    const saldoPendiente = pagado ? 0 : Math.abs(saldoNuevo);
+    return {
+      casa: c.casa,
+      montoPagado: c.montoPagado,
+      saldoAnterior,
+      saldoNuevo,
+      pagado,
+      saldoPendiente
+    };
+  });
+
+  const ingresoTotal = data.casas.reduce((s, c) => s + c.montoPagado, 0);
+  const gastosOperacionales = data.gastos.filter(g => g.imputar === 'operacional').reduce((s, g) => s + g.monto, 0);
+  const gastosReserva = data.gastos.filter(g => g.imputar === 'reserva').reduce((s, g) => s + g.monto, 0);
+
+  const saldoOperacional = ingresoTotal - APORTE_RESERVA - gastosOperacionales;
+  const reservaNueva = data.reservaAnterior + APORTE_RESERVA - gastosReserva;
+
+  return { casasCalc, ingresoTotal, gastosOperacionales, gastosReserva, saldoOperacional, reservaNueva };
 }
 
 // ——— GUARDAR ———
@@ -699,24 +347,34 @@ async function guardarMes() {
   if (!data.mes || !data.anio) return showToast('Completa mes y año');
 
   const key = `${data.mes}-${data.anio}`;
-  const calc = calcBalance(data);
-  const entrada = { ...data, ...calc, key, savedAt: new Date().toISOString() };
+  const calc = calcBalance(data, _saldosCasasCache);
 
-  // actualizar deudas
-  const deudas = getDeudas();
-  data.casas.forEach(c => {
-    if (!deudas[c.casa]) deudas[c.casa] = 0;
-    if (c.estado === 'pendiente') deudas[c.casa] += c.monto;
-  });
+  // Actualizar saldos por casa
+  const nuevosSaldos = {};
+  calc.casasCalc.forEach(c => { nuevosSaldos[c.casa] = c.saldoNuevo; });
+
+  const entrada = {
+    ...data,
+    casasCalc: calc.casasCalc,
+    ingresoTotal: calc.ingresoTotal,
+    gastosOperacionales: calc.gastosOperacionales,
+    gastosReserva: calc.gastosReserva,
+    saldoOperacional: calc.saldoOperacional,
+    reservaNueva: calc.reservaNueva,
+    key,
+    savedAt: new Date().toISOString()
+  };
 
   showLoading(true, 'Guardando...');
   try {
     await Promise.all([
       apiPost({ action: 'save', key, payload: entrada }),
-      apiPost({ action: 'saveDeudas', payload: deudas })
+      apiPost({ action: 'saveSaldos', payload: { saldosCasas: nuevosSaldos, reservaAcumulada: calc.reservaNueva } })
     ]);
     _historialCache[key] = entrada;
-    _deudasCache = deudas;
+    _saldosCasasCache = nuevosSaldos;
+    _reservaAcumuladaCache = calc.reservaNueva;
+    document.getElementById('inp-reserva').value = calc.reservaNueva;
     showToast('✓ Guardado en Google Sheets');
     renderResumen(entrada);
     renderEstado();
@@ -728,156 +386,191 @@ async function guardarMes() {
   showLoading(false);
 }
 
-// ——— API SHEETS ———
-async function apiPost(body) {
-  const res = await fetch(SCRIPT_URL, {
-    method: 'POST',
-    body: JSON.stringify(body)
-  });
-  return res.json();
-}
-
-// ——— CACHE ACCESSORS ———
-function getHistorial() { return _historialCache || {}; }
-function getDeudas() { return _deudasCache || {}; }
-
-async function saveDeudas(d) {
-  _deudasCache = d;
-  await apiPost({ action: 'saveDeudas', payload: d });
-}
-
-function cargarDatosPrevios() {} // reemplazado por cargarTodo()
-
-// ——— LOADING ———
-function showLoading(on, msg = '') {
-  let el = document.getElementById('loading-overlay');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'loading-overlay';
-    el.style.cssText = `position:fixed;inset:0;background:rgba(28,26,22,0.55);z-index:9999;
-      display:flex;align-items:center;justify-content:center;`;
-    el.innerHTML = `<div style="background:var(--paper);border-radius:12px;padding:24px 32px;
-      font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;color:var(--ink);
-      display:flex;align-items:center;gap:12px">
-      <span style="font-size:20px">⏳</span><span id="loading-msg">Cargando...</span></div>`;
-    document.body.appendChild(el);
-  }
-  el.style.display = on ? 'flex' : 'none';
-  if (msg) document.getElementById('loading-msg').textContent = msg;
-}
-
 // ——— RENDER RESUMEN ———
 function renderResumen(data) {
-  const c = calcBalance(data);
-  const pendientes = data.casas.filter(x => x.estado === 'pendiente').length;
+  const saldoOpClass = data.saldoOperacional >= 0 ? 'accent' : 'danger';
 
   let html = `
     <div class="resumen-grid">
       <div class="resumen-box accent">
-        <span class="resumen-val">$${fmt(c.ingresoTotal)}</span>
+        <span class="resumen-val">$${fmt(data.ingresoTotal)}</span>
         <span class="resumen-lbl">Ingresos cobrados</span>
       </div>
-      <div class="resumen-box ${pendientes > 0 ? 'danger' : ''}">
-        <span class="resumen-val">${pendientes}</span>
-        <span class="resumen-lbl">Casas pendientes</span>
-      </div>
       <div class="resumen-box">
-        <span class="resumen-val">$${fmt(c.gastoTotal)}</span>
-        <span class="resumen-lbl">Total gastos</span>
+        <span class="resumen-val">$${fmt(data.gastosOperacionales)}</span>
+        <span class="resumen-lbl">Gastos operac.</span>
       </div>
-      <div class="resumen-box ${c.balance >= 0 ? 'accent' : 'danger'}">
-        <span class="resumen-val">${c.balance >= 0 ? '+' : ''}$${fmt(c.balance)}</span>
-        <span class="resumen-lbl">Balance mes</span>
+      <div class="resumen-box ${saldoOpClass}">
+        <span class="resumen-val">${data.saldoOperacional >= 0 ? '+' : ''}$${fmt(data.saldoOperacional)}</span>
+        <span class="resumen-lbl">Saldo operacional</span>
       </div>
-    </div>
-    <div class="resumen-box gold" style="margin-bottom:14px; text-align:center">
-      <span class="resumen-val">$${fmt(c.reservaFinal)}</span>
-      <span class="resumen-lbl">🏦 Fondo de reserva actualizado</span>
-    </div>
-    <div class="card">
-      <div class="card-title"><span class="icon">📄</span> ${data.mes} ${data.anio}</div>`;
-
-  html += `<p class="section-sub">Pagos por casa</p>`;
-  data.casas.forEach(c2 => {
-    const ok = c2.estado === 'pagado';
-    html += `<div class="info-row">
-      <span>Casa ${c2.casa}</span>
-      <span style="color:${ok ? 'var(--accent)' : 'var(--danger)'}; font-weight:600">
-        $${fmt(c2.monto)} ${ok ? '✓' : '✗ pendiente'}
-      </span>
+      <div class="resumen-box gold">
+        <span class="resumen-val">$${fmt(data.reservaNueva)}</span>
+        <span class="resumen-lbl">Fondo reserva</span>
+      </div>
     </div>`;
+
+  // Tabla casas
+  html += `<div class="card">
+    <div class="card-title"><span class="icon">🏠</span> Pagos · ${data.mes} ${data.anio}</div>
+    <div style="overflow-x:auto">
+    <table class="tabla-casas">
+      <thead>
+        <tr><th class="left" style="width:70px">Casa</th><th colspan="3" class="mes-header">${data.mes} ${data.anio}</th></tr>
+        <tr><th class="left">–</th><th>Monto</th><th>Estado</th><th>Saldo Pendiente</th></tr>
+      </thead>
+      <tbody>`;
+
+  data.casasCalc.forEach(c => {
+    const tag = c.pagado
+      ? `<span class="tag-pagado">Pagado ✓</span>`
+      : `<span class="tag-pendiente">Pendiente ✗</span>`;
+    const saldoClass = c.saldoPendiente === 0 ? 'saldo-ok' : 'saldo-mal';
+    html += `<tr>
+      <td class="casa-nombre">Casa ${c.casa}</td>
+      <td class="monto">$${fmt(c.montoPagado)}</td>
+      <td class="estado">${tag}</td>
+      <td class="saldo ${saldoClass}">$${fmt(c.saldoPendiente)}</td>
+    </tr>`;
   });
 
-  if (data.gastos.length > 0) {
-    html += `<hr class="divider"><p class="section-sub">Gastos</p>`;
-    data.gastos.forEach(g => {
-      html += `<div class="info-row"><span>${g.desc}</span><strong>$${fmt(g.monto)}</strong></div>`;
-    });
+  html += `</tbody></table></div></div>`;
+
+  // Gastos
+  if (data.gastos && data.gastos.length > 0) {
+    html += `<div class="card"><div class="card-title"><span class="icon">💸</span> Gastos del período</div>`;
+    const oper = data.gastos.filter(g => g.imputar === 'operacional');
+    const reserva = data.gastos.filter(g => g.imputar === 'reserva');
+    if (oper.length > 0) {
+      html += `<p class="section-sub">Operacionales</p>`;
+      oper.forEach(g => {
+        html += `<div class="info-row"><span>• ${g.desc}</span><strong>$${fmt(g.monto)}</strong></div>`;
+      });
+    }
+    if (reserva.length > 0) {
+      html += `<p class="section-sub" style="margin-top:8px">Imputados a Fondo Reserva</p>`;
+      reserva.forEach(g => {
+        html += `<div class="info-row"><span>• ${g.desc}</span><strong style="color:var(--gold)">$${fmt(g.monto)}</strong></div>`;
+      });
+    }
+    html += `</div>`;
   }
+
+  // Detalle fondo reserva
+  html += `<div class="card">
+    <div class="card-title"><span class="icon">🏦</span> Detalle Fondo Reserva</div>
+    <div class="info-row"><span>Saldo anterior</span><strong>$${fmt(data.reservaAnterior)}</strong></div>
+    <div class="info-row"><span>+ Aporte mensual</span><strong>$${fmt(APORTE_RESERVA)}</strong></div>
+    ${data.gastosReserva > 0 ? `<div class="info-row"><span>− Gastos imputados</span><strong style="color:var(--danger)">$${fmt(data.gastosReserva)}</strong></div>` : ''}
+    <hr class="divider">
+    <div class="info-row"><span style="font-weight:700">Saldo fondo reserva</span><strong style="color:var(--gold);font-size:15px">$${fmt(data.reservaNueva)}</strong></div>
+  </div>`;
 
   if (data.notas) {
-    html += `<hr class="divider"><p class="section-sub">Notas</p><p style="font-size:13px;color:var(--ink-soft);line-height:1.5">${data.notas}</p>`;
+    html += `<div class="card"><div class="card-title"><span class="icon">📝</span> Notas</div>
+      <p style="font-size:12px;color:var(--ink-soft);line-height:1.5">${data.notas}</p></div>`;
   }
 
-  html += `</div>
-    <button class="btn btn-pdf" onclick="generarPDF()">📄 Descargar PDF</button>`;
+  if (data.venc) {
+    html += `<div class="card" style="background:var(--danger-light);border-color:#e0b0b0">
+      <p style="font-size:12px;font-weight:700;color:var(--danger)">⏰ Vencimiento: ${data.venc}</p></div>`;
+  }
+
+  html += `<button class="btn btn-pdf" onclick="generarPDF()">📄 Descargar PDF</button>`;
 
   document.getElementById('resumen-content').innerHTML = html;
+}
+
+// ——— RENDER ESTADO ———
+function renderEstado() {
+  const pendienteCount = CASAS.filter(c => (_saldosCasasCache[c] || 0) < 0).length;
+  const estadoTab = document.querySelectorAll('.tab-btn')[2];
+  estadoTab.innerHTML = `🏠 Estado${pendienteCount > 0 ? `<span class="badge-count">${pendienteCount}</span>` : ''}`;
+
+  let html = `
+    <div class="resumen-grid">
+      <div class="resumen-box gold" style="grid-column:1/-1">
+        <span class="resumen-val">$${fmt(_reservaAcumuladaCache)}</span>
+        <span class="resumen-lbl">🏦 Fondo de reserva acumulado</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🏠</span> Saldo neto por casa</div>`;
+
+  CASAS.forEach(c => {
+    const saldo = _saldosCasasCache[c] || 0;
+    const alDia = saldo >= 0;
+    const tag = alDia
+      ? `<span class="deuda-tag tag-ok">Al día ✓${saldo > 0 ? ' (+$'+fmt(saldo)+')' : ''}</span>`
+      : `<span class="deuda-tag tag-deuda">Debe $${fmt(Math.abs(saldo))}</span>`;
+    html += `<div class="estado-casa"><span class="nombre">Casa ${c}</span>${tag}</div>`;
+  });
+
+  html += `</div>
+    <div class="card">
+      <div class="card-title"><span class="icon">✓</span> Registrar pago de deuda</div>
+      <p style="font-size:11px;color:var(--ink-soft);margin-bottom:9px">Si una casa pagó su deuda fuera del ciclo mensual:</p>
+      <div class="row-2" style="margin-bottom:7px">
+        <div>
+          <label>Casa</label>
+          <select id="deuda-casa">${CASAS.map(c => `<option value="${c}">Casa ${c}</option>`).join('')}</select>
+        </div>
+        <div>
+          <label>Monto pagado $</label>
+          <input type="number" id="deuda-monto" placeholder="0" min="0">
+        </div>
+      </div>
+      <button class="btn btn-secondary" onclick="saldarDeuda()">Registrar pago</button>
+    </div>`;
+
+  document.getElementById('estado-content').innerHTML = html;
 }
 
 async function saldarDeuda() {
   const casa = document.getElementById('deuda-casa').value;
   const monto = parseNum(document.getElementById('deuda-monto').value);
   if (!monto) return showToast('Ingresa un monto');
-  const deudas = getDeudas();
-  deudas[casa] = Math.max(0, (deudas[casa] || 0) - monto);
+  _saldosCasasCache[casa] = (_saldosCasasCache[casa] || 0) + monto;
   showLoading(true, 'Guardando...');
   try {
-    await saveDeudas(deudas);
+    await apiPost({ action: 'saveSaldos', payload: { saldosCasas: _saldosCasasCache, reservaAcumulada: _reservaAcumuladaCache } });
     renderEstado();
     showToast(`✓ Pago de Casa ${casa} registrado`);
-  } catch(e) {
-    showToast('❌ Error al guardar');
-  }
+  } catch(e) { showToast('❌ Error al guardar'); }
   showLoading(false);
 }
 
 // ——— RENDER HISTORIAL ———
 function renderHistorial() {
-  const hist = getHistorial();
-  const keys = Object.keys(hist).reverse();
-
+  const keys = Object.keys(_historialCache).reverse();
   if (keys.length === 0) {
-    document.getElementById('historial-content').innerHTML = `
-      <div class="empty-state"><span class="emoji">📁</span>No hay meses registrados</div>`;
+    document.getElementById('historial-content').innerHTML = `<div class="empty-state"><span class="emoji">📁</span>No hay meses registrados</div>`;
     return;
   }
-
   let html = '';
   keys.forEach(k => {
-    const d = hist[k];
-    const c = { balance: d.balance, reservaFinal: d.reservaFinal };
-    const pendientes = d.casas.filter(x => x.estado === 'pendiente').length;
+    const d = _historialCache[k];
+    const pendientes = (d.casasCalc || []).filter(c => !c.pagado).length;
     html += `
       <div class="historial-item" onclick="this.classList.toggle('open')">
         <div class="historial-header">
           <span class="historial-mes">${d.mes} ${d.anio}</span>
-          <span class="historial-balance ${d.balance >= 0 ? 'pos' : 'neg'}">
-            ${d.balance >= 0 ? '+' : ''}$${fmt(d.balance)}
+          <span class="historial-balance ${d.saldoOperacional >= 0 ? 'pos' : 'neg'}">
+            Op: ${d.saldoOperacional >= 0 ? '+' : ''}$${fmt(d.saldoOperacional)}
           </span>
         </div>
         <div class="historial-detail">
-          <div class="info-row"><span>Ingresos cobrados</span><strong>$${fmt(d.ingresoTotal)}</strong></div>
-          <div class="info-row"><span>Gastos totales</span><strong>$${fmt(d.gastoTotal)}</strong></div>
-          <div class="info-row"><span>Casas pendientes</span><strong>${pendientes}</strong></div>
-          <div class="info-row"><span>Reserva resultante</span><strong>$${fmt(d.reservaFinal)}</strong></div>
-          ${d.notas ? `<hr class="divider"><p style="font-size:12px;color:var(--ink-soft)">${d.notas}</p>` : ''}
-          <button class="btn btn-pdf" style="margin-top:10px;padding:10px" onclick="event.stopPropagation(); generarPDFDato(${JSON.stringify(d).replace(/</g,'&lt;')})">📄 PDF este mes</button>
-          <button class="btn btn-secondary" style="margin-top:6px;padding:10px" onclick="event.stopPropagation(); eliminarMes('${k}')">🗑 Eliminar mes</button>
+          <div class="info-row"><span>Ingresos</span><strong>$${fmt(d.ingresoTotal)}</strong></div>
+          <div class="info-row"><span>Gastos operacionales</span><strong>$${fmt(d.gastosOperacionales)}</strong></div>
+          <div class="info-row"><span>Saldo operacional</span><strong>$${fmt(d.saldoOperacional)}</strong></div>
+          <div class="info-row"><span>Fondo reserva resultante</span><strong>$${fmt(d.reservaNueva)}</strong></div>
+          <div class="info-row"><span>Casas con deuda</span><strong>${pendientes}</strong></div>
+          ${d.notas ? `<hr class="divider"><p style="font-size:11px">${d.notas}</p>` : ''}
+          <button class="btn btn-pdf" style="margin-top:9px;padding:9px" onclick="event.stopPropagation();generarPDFDato(${escJson(d)})">📄 PDF este mes</button>
+          <button class="btn btn-secondary" style="margin-top:5px;padding:9px" onclick="event.stopPropagation();eliminarMes('${k}')">🗑 Eliminar mes</button>
         </div>
       </div>`;
   });
-
   document.getElementById('historial-content').innerHTML = html;
 }
 
@@ -889,245 +582,201 @@ async function eliminarMes(key) {
     delete _historialCache[key];
     renderHistorial();
     showToast('Mes eliminado');
-  } catch(e) {
-    showToast('❌ Error al eliminar');
-  }
+  } catch(e) { showToast('❌ Error al eliminar'); }
   showLoading(false);
 }
 
 // ——— PDF ———
 function generarPDF() {
-  const hist = getHistorial();
-  const keys = Object.keys(hist);
+  const keys = Object.keys(_historialCache);
   if (keys.length === 0) return showToast('Guarda el mes primero');
-  const ultimo = hist[keys[keys.length - 1]];
-  generarPDFDato(ultimo);
+  generarPDFDato(_historialCache[keys[keys.length - 1]]);
 }
 
 function generarPDFDato(data) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210;
-  const mg = 20;
+  const W = 210, mg = 18;
   let y = 20;
-
-  const LINE = 6;
-  const fmtNum = n => '$' + fmt(n);
+  const fmtN = n => '$' + fmt(n);
 
   // Header
   doc.setFillColor(28, 26, 22);
-  doc.rect(0, 0, W, 30, 'F');
+  doc.rect(0, 0, W, 28, 'F');
   doc.setTextColor(245, 242, 235);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('CONDOMINIO', mg, 13);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Gastos Comunes · ${data.mes} ${data.anio}`, mg, 22);
-  if (data.venc) {
-    doc.setFontSize(9);
-    doc.text(`Vencimiento: ${data.venc}`, W - mg, 22, { align: 'right' });
-  }
-  y = 40;
-
+  doc.setFontSize(17); doc.setFont('helvetica', 'bold');
+  doc.text('CONDOMINIO', mg, 12);
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text(`Gastos Comunes · ${data.mes} ${data.anio}`, mg, 21);
+  if (data.venc) { doc.setFontSize(8); doc.text(`Vencimiento: ${data.venc}`, W - mg, 21, { align: 'right' }); }
+  y = 36;
   doc.setTextColor(28, 26, 22);
 
-  // Balance cards
-  const cards = [
-    { label: 'Ingresos cobrados', val: fmtNum(data.ingresoTotal), color: [232, 240, 230] },
-    { label: 'Total gastos', val: fmtNum(data.gastoTotal), color: [245, 242, 235] },
-    { label: 'Balance del mes', val: (data.balance >= 0 ? '+' : '') + fmtNum(data.balance), color: data.balance >= 0 ? [232, 240, 230] : [245, 232, 232] },
-    { label: 'Fondo de reserva', val: fmtNum(data.reservaFinal), color: [253, 246, 227] },
+  // Balance boxes
+  const boxes = [
+    { label: 'INGRESOS', val: fmtN(data.ingresoTotal), col: [232,240,230] },
+    { label: 'GASTOS OPER.', val: fmtN(data.gastosOperacionales), col: [245,242,235] },
+    { label: 'SALDO OPERACIONAL', val: (data.saldoOperacional>=0?'+':'') + fmtN(data.saldoOperacional), col: data.saldoOperacional>=0?[232,240,230]:[245,232,232] },
+    { label: 'FONDO RESERVA', val: fmtN(data.reservaNueva), col: [253,246,227] },
   ];
+  const bw = (W - mg*2 - 8) / 2;
+  boxes.forEach((b, i) => {
+    const bx = mg + (i%2)*(bw+8);
+    const by = y + Math.floor(i/2)*18;
+    doc.setFillColor(...b.col);
+    doc.roundedRect(bx, by, bw, 14, 2, 2, 'F');
+    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text(b.val, bx+bw/2, by+7, {align:'center'});
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100,96,88);
+    doc.text(b.label, bx+bw/2, by+11.5, {align:'center'});
+    doc.setTextColor(28,26,22);
+  });
+  y += 42;
 
-  const cw = (W - mg * 2 - 10) / 2;
-  cards.forEach((card, i) => {
-    const cx = mg + (i % 2) * (cw + 10);
-    const cy = y + Math.floor(i / 2) * 20;
-    doc.setFillColor(...card.color);
-    doc.roundedRect(cx, cy, cw, 16, 3, 3, 'F');
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(card.val, cx + cw / 2, cy + 8, { align: 'center' });
-    doc.setFontSize(7.5);
+  // Tabla casas
+  doc.setDrawColor(221,216,204);
+  doc.line(mg, y, W-mg, y); y += 7;
+  doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+  doc.text('PAGOS POR CASA', mg, y); y += 5;
+
+  // Header tabla
+  const cols = [mg, mg+45, mg+95, mg+130];
+  doc.setFillColor(45, 90, 39);
+  doc.rect(mg, y, W-mg*2, 7, 'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
+  doc.text(`${data.mes} ${data.anio}`, mg + (W-mg*2)/2, y+4.5, {align:'center'});
+  y += 7;
+  doc.setFillColor(60,60,55);
+  doc.rect(mg, y, W-mg*2, 6, 'F');
+  doc.text('Casa', cols[0]+2, y+4);
+  doc.text('Monto pagado', cols[1]+2, y+4);
+  doc.text('Estado', cols[2]+2, y+4);
+  doc.text('Saldo Pendiente', cols[3]+2, y+4);
+  doc.setTextColor(28,26,22); y += 6;
+
+  (data.casasCalc || []).forEach((c, i) => {
+    doc.setFillColor(i%2===0 ? 245 : 255, i%2===0 ? 242 : 253, i%2===0 ? 235 : 248);
+    doc.rect(mg, y, W-mg*2, 8, 'F');
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.text(`Casa ${c.casa}`, cols[0]+2, y+5.5);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 96, 88);
-    doc.text(card.label.toUpperCase(), cx + cw / 2, cy + 13, { align: 'center' });
-    doc.setTextColor(28, 26, 22);
+    doc.text(fmtN(c.montoPagado), cols[1]+2, y+5.5);
+    if (c.pagado) { doc.setTextColor(45,90,39); doc.setFont('helvetica','bold'); doc.text('Pagado ✓', cols[2]+2, y+5.5); }
+    else { doc.setTextColor(139,46,46); doc.setFont('helvetica','bold'); doc.text('Pendiente ✗', cols[2]+2, y+5.5); }
+    doc.setTextColor(c.saldoPendiente===0 ? 45 : 139, c.saldoPendiente===0 ? 90 : 46, c.saldoPendiente===0 ? 39 : 46);
+    doc.setFont('helvetica','bold');
+    doc.text(fmtN(c.saldoPendiente), cols[3]+2, y+5.5);
+    doc.setTextColor(28,26,22);
+    y += 8;
   });
-  y += 46;
-
-  // Línea
-  doc.setDrawColor(221, 216, 204);
-  doc.line(mg, y, W - mg, y);
-  y += 8;
-
-  // Pagos por casa
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PAGOS POR CASA', mg, y);
-  y += 6;
-
-  data.casas.forEach(c => {
-    const ok = c.estado === 'pagado';
-    doc.setFillColor(ok ? 232 : 245, ok ? 240 : 232, ok ? 230 : 232);
-    doc.rect(mg, y, W - mg * 2, 8, 'F');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', ok ? 'normal' : 'bold');
-    doc.setTextColor(ok ? 45 : 139, ok ? 90 : 46, ok ? 39 : 46);
-    doc.text(`Casa ${c.casa}`, mg + 3, y + 5.5);
-    doc.text(ok ? '✓ Pagado' : '✗ Pendiente', mg + 50, y + 5.5);
-    doc.setTextColor(28, 26, 22);
-    doc.setFont('helvetica', 'bold');
-    doc.text(fmtNum(c.monto), W - mg - 3, y + 5.5, { align: 'right' });
-    y += 9;
-  });
-  y += 6;
+  y += 5;
 
   // Gastos
   if (data.gastos && data.gastos.length > 0) {
-    doc.setDrawColor(221, 216, 204);
-    doc.line(mg, y, W - mg, y);
-    y += 8;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(28, 26, 22);
-    doc.text('GASTOS DEL PERÍODO', mg, y);
-    y += 6;
-
-    data.gastos.forEach(g => {
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`• ${g.desc}`, mg + 2, y);
-      doc.setFont('helvetica', 'bold');
-      doc.text(fmtNum(g.monto), W - mg - 3, y, { align: 'right' });
-      y += LINE;
-    });
-
-    // total
-    y += 2;
-    doc.setFillColor(28, 26, 22);
-    doc.rect(mg, y, W - mg * 2, 9, 'F');
-    doc.setTextColor(245, 242, 235);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL GASTOS', mg + 3, y + 6);
-    doc.text(fmtNum(data.gastoTotal), W - mg - 3, y + 6, { align: 'right' });
-    doc.setTextColor(28, 26, 22);
-    y += 14;
+    doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y += 7;
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('GASTOS DEL PERÍODO', mg, y); y += 5;
+    const oper = data.gastos.filter(g=>g.imputar==='operacional');
+    const res = data.gastos.filter(g=>g.imputar==='reserva');
+    if (oper.length > 0) {
+      doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(30,77,122);
+      doc.text('OPERACIONALES', mg, y); doc.setTextColor(28,26,22); y += 4;
+      oper.forEach(g => {
+        doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+        doc.text(`• ${g.desc}`, mg+2, y); doc.setFont('helvetica','bold');
+        doc.text(fmtN(g.monto), W-mg-2, y, {align:'right'}); y += 5.5;
+      });
+    }
+    if (res.length > 0) {
+      y += 2;
+      doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(160,131,42);
+      doc.text('IMPUTADOS A FONDO RESERVA', mg, y); doc.setTextColor(28,26,22); y += 4;
+      res.forEach(g => {
+        doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+        doc.text(`• ${g.desc}`, mg+2, y); doc.setFont('helvetica','bold'); doc.setTextColor(160,131,42);
+        doc.text(fmtN(g.monto), W-mg-2, y, {align:'right'}); doc.setTextColor(28,26,22); y += 5.5;
+      });
+    }
+    y += 3;
   }
+
+  // Detalle fondo reserva
+  doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y += 7;
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('FONDO DE RESERVA', mg, y); y += 5;
+  doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,data.gastosReserva>0?22:16,2,2,'F');
+  doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+  doc.text(`Saldo anterior: ${fmtN(data.reservaAnterior)}`, mg+3, y+5);
+  doc.text(`+ Aporte mensual: ${fmtN(APORTE_RESERVA)}`, mg+3, y+11);
+  if (data.gastosReserva > 0) { doc.setTextColor(139,46,46); doc.text(`− Gastos imputados: ${fmtN(data.gastosReserva)}`, mg+3, y+17); doc.setTextColor(28,26,22); }
+  doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text(`= ${fmtN(data.reservaNueva)}`, W-mg-3, y+(data.gastosReserva>0?17:11), {align:'right'});
+  y += data.gastosReserva>0 ? 26 : 20;
 
   // Notas
   if (data.notas) {
-    doc.setDrawColor(221, 216, 204);
-    doc.line(mg, y, W - mg, y);
-    y += 8;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AVISOS Y NOTAS', mg, y);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const lines = doc.splitTextToSize(data.notas, W - mg * 2 - 4);
-    doc.setFillColor(253, 246, 227);
-    doc.rect(mg, y, W - mg * 2, lines.length * 5 + 6, 'F');
-    doc.text(lines, mg + 3, y + 5);
-    y += lines.length * 5 + 10;
+    doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y+=7;
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('AVISOS Y NOTAS', mg, y); y+=5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    const lines = doc.splitTextToSize(data.notas, W-mg*2-4);
+    doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,lines.length*5+5,'F');
+    doc.text(lines, mg+3, y+4); y += lines.length*5+9;
   }
 
   // Footer
-  doc.setFontSize(8);
-  doc.setTextColor(160, 155, 145);
-  doc.text(`Generado el ${new Date().toLocaleDateString('es-CL')}  ·  Condominio`, W / 2, 287, { align: 'center' });
-
+  doc.setFontSize(7.5); doc.setTextColor(160,155,145);
+  doc.text(`Generado el ${new Date().toLocaleDateString('es-CL')} · Condominio`, W/2, 287, {align:'center'});
   doc.save(`GastosComunes_${data.mes}${data.anio}.pdf`);
   showToast('✓ PDF descargado');
 }
 
-// ——— UTILS ———
-function fmt(n) {
-  return (n || 0).toLocaleString('es-CL');
+// ——— API ———
+async function apiPost(body) {
+  const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) });
+  return res.json();
 }
+
+// ——— UTILS ———
+function fmt(n) { return (n||0).toLocaleString('es-CL'); }
+function escJson(d) { return JSON.stringify(d).replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function showToast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+  t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-function showTab(tab) {
+function showLoading(on, msg='') {
+  let el = document.getElementById('loading-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'loading-overlay';
+    el.style.cssText = `position:fixed;inset:0;background:rgba(28,26,22,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;`;
+    el.innerHTML = `<div style="background:var(--paper);border-radius:12px;padding:22px 30px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:10px"><span style="font-size:18px">⏳</span><span id="loading-msg">Cargando...</span></div>`;
+    document.body.appendChild(el);
+  }
+  el.style.display = on ? 'flex' : 'none';
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+function showTab(tab, btn) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
-  event.target.classList.add('active');
+  btn.classList.add('active');
   if (tab === 'resumen') {
-    const hist = getHistorial();
-    const keys = Object.keys(hist);
-    if (keys.length > 0) renderResumen(hist[keys[keys.length - 1]]);
+    const keys = Object.keys(_historialCache);
+    if (keys.length > 0) renderResumen(_historialCache[keys[keys.length-1]]);
   }
   if (tab === 'historial') renderHistorial();
   if (tab === 'estado') renderEstado();
 }
 
 function actualizarHeaderMes() {
-  const hist = getHistorial();
-  const keys = Object.keys(hist);
+  const keys = Object.keys(_historialCache);
   if (keys.length > 0) {
-    const u = hist[keys[keys.length - 1]];
+    const u = _historialCache[keys[keys.length-1]];
     document.getElementById('header-mes').textContent = `${u.mes} ${u.anio}`;
   }
-}
-
-// ——— RENDER ESTADO (usa cache) ———
-function renderEstado() {
-  const deudas = getDeudas();
-  const hist = getHistorial();
-  const keys = Object.keys(hist);
-  const reserva = keys.length > 0 ? hist[keys[keys.length - 1]].reservaFinal : 0;
-
-  let pendienteCount = 0;
-  CASAS.forEach(c => { if ((deudas[c] || 0) > 0) pendienteCount++; });
-
-  const estadoTab = document.querySelector('.tab-btn:nth-child(3)');
-  estadoTab.innerHTML = `🏠 Estado${pendienteCount > 0 ? `<span class="badge-count">${pendienteCount}</span>` : ''}`;
-
-  let html = `
-    <div class="resumen-box gold" style="margin-bottom:14px; text-align:center">
-      <span class="resumen-val">$${fmt(parseInt(reserva))}</span>
-      <span class="resumen-lbl">🏦 Fondo de reserva acumulado</span>
-    </div>
-    <div class="card">
-      <div class="card-title"><span class="icon">🏠</span> Estado de deuda por casa</div>`;
-
-  CASAS.forEach(c => {
-    const deuda = deudas[c] || 0;
-    const tag = deuda === 0
-      ? `<span class="deuda-tag tag-ok">Al día ✓</span>`
-      : `<span class="deuda-tag tag-deuda">Debe $${fmt(deuda)}</span>`;
-    html += `<div class="estado-casa"><span class="nombre">Casa ${c}</span>${tag}</div>`;
-  });
-
-  html += `</div>
-    <div class="card">
-      <div class="card-title"><span class="icon">✓</span> Marcar pago de deuda</div>
-      <p style="font-size:12px;color:var(--ink-soft);margin-bottom:10px">Si una casa pagó su deuda pendiente fuera del ciclo mensual:</p>
-      <div class="row-2" style="margin-bottom:8px">
-        <div>
-          <label>Casa</label>
-          <select id="deuda-casa">
-            ${CASAS.map(c => `<option value="${c}">Casa ${c}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <label>Monto pagado $</label>
-          <input type="number" id="deuda-monto" placeholder="0" min="0">
-        </div>
-      </div>
-      <button class="btn btn-secondary" onclick="saldarDeuda()">Registrar pago de deuda</button>
-    </div>`;
-
-  document.getElementById('estado-content').innerHTML = html;
 }
 </script>
 </body>
