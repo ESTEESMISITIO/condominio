@@ -637,6 +637,16 @@ function generarPDFDato(data) {
   }));
   data.gastos = (data.gastos || []).map(g => ({ ...g, monto: nv(g.monto) }));
 
+  console.log('PDF data:', JSON.stringify({
+    ingresoTotal: data.ingresoTotal,
+    gastosOperacionales: data.gastosOperacionales,
+    gastosReserva: data.gastosReserva,
+    saldoOperacional: data.saldoOperacional,
+    reservaNueva: data.reservaNueva,
+    reservaAnterior: data.reservaAnterior,
+    casasCalc: data.casasCalc
+  }));
+
   // Header
   doc.setFillColor(28, 26, 22);
   doc.rect(0, 0, W, 28, 'F');
