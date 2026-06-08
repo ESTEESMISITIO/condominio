@@ -622,7 +622,20 @@ function generarPDFDato(data) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, mg = 18;
   let y = 20;
-  const fmtN = n => '$' + fmt(n);
+  const fmtN = v => '$' + fmt(v);
+
+  // Normalizar valores para evitar NaN en jsPDF
+  const nv = v => parseFloat(v) || 0;
+  data.ingresoTotal = nv(data.ingresoTotal);
+  data.gastosOperacionales = nv(data.gastosOperacionales);
+  data.gastosReserva = nv(data.gastosReserva);
+  data.saldoOperacional = nv(data.saldoOperacional);
+  data.reservaNueva = nv(data.reservaNueva);
+  data.reservaAnterior = nv(data.reservaAnterior);
+  data.casasCalc = (data.casasCalc || []).map(c => ({
+    ...c, montoPagado: nv(c.montoPagado), saldoPendiente: nv(c.saldoPendiente)
+  }));
+  data.gastos = (data.gastos || []).map(g => ({ ...g, monto: nv(g.monto) }));
 
   // Header
   doc.setFillColor(28, 26, 22);
