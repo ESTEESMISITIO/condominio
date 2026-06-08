@@ -234,12 +234,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function cargarTodo() {
   try {
-    const [histRes, saldosRes] = await Promise.all([
-      fetch(`${SCRIPT_URL}?action=getAll`),
-      fetch(`${SCRIPT_URL}?action=getSaldos`)
+    const [historial, saldosData] = await Promise.all([
+      jsonpGet('getAll'),
+      jsonpGet('getSaldos')
     ]);
-    _historialCache = await histRes.json();
-    const saldosData = await saldosRes.json();
+    _historialCache = historial || {};
     _saldosCasasCache = saldosData.saldosCasas || {};
     _reservaAcumuladaCache = saldosData.reservaAcumulada || 0;
     document.getElementById('inp-reserva').value = _reservaAcumuladaCache;
@@ -249,6 +248,31 @@ async function cargarTodo() {
     _saldosCasasCache = {};
     _reservaAcumuladaCache = 0;
   }
+}
+
+function jsonpGet(action) {
+  return new Promise((resolve, reject) => {
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    let done = false;
+    window[cb] = (data) => {
+      done = true;
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      resolve(data);
+    };
+    script.onerror = () => {
+      done = true;
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error('Error de red'));
+    };
+    script.src = SCRIPT_URL + '?action=' + action + '&callback=' + cb;
+    document.body.appendChild(script);
+    setTimeout(() => {
+      if (!done) { delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); reject(new Error('Timeout')); }
+    }, 12000);
+  });
 }
 
 function initCasas() {
@@ -731,8 +755,30 @@ function generarPDFDato(data) {
 
 // ——— API ———
 async function apiPost(body) {
-  const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) });
-  return res.json();
+  return new Promise((resolve, reject) => {
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    let done = false;
+    window[cb] = (data) => {
+      done = true;
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      resolve(data);
+    };
+    script.onerror = () => {
+      done = true;
+      delete window[cb];
+      if (script.parentNode) script.parentNode.removeChild(script);
+      reject(new Error('Error de red'));
+    };
+    // Para POST usamos GET con parámetro data (Apps Script lo lee desde e.parameter)
+    const encoded = encodeURIComponent(JSON.stringify(body));
+    script.src = SCRIPT_URL + '?callback=' + cb + '&postdata=' + encoded;
+    document.body.appendChild(script);
+    setTimeout(() => {
+      if (!done) { delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); reject(new Error('Timeout')); }
+    }, 12000);
+  });
 }
 
 // ——— UTILS ———
