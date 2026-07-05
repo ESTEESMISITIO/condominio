@@ -361,7 +361,7 @@ function calcBalance(data, saldosCasasAnteriores, saldoOpAnterior) {
   const gastosOperacionales = data.gastos.filter(g => g.imputar === 'operacional').reduce((s, g) => s + g.monto, 0);
   const gastosReserva = data.gastos.filter(g => g.imputar === 'reserva').reduce((s, g) => s + g.monto, 0);
 
-  const saldoOperacional = (saldoOpAnterior || 0) + ingresoTotal - APORTE_RESERVA - gastosOperacionales;
+  const saldoOperacional = (saldoOpAnterior || 0) + ingresoTotal - gastosOperacionales;
   const reservaNueva = data.reservaAnterior + APORTE_RESERVA - gastosReserva;
 
   return { casasCalc, ingresoTotal, gastosOperacionales, gastosReserva, saldoOperacional, reservaNueva };
