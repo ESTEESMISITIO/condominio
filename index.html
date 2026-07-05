@@ -217,8 +217,9 @@ const CUOTA_BASE = 20000;
 const APORTE_RESERVA = 45000;
 let gastoCounter = 0;
 let _historialCache = {};
-let _saldosCasasCache = {}; // saldo neto acumulado por casa (puede ser negativo)
+let _saldosCasasCache = {};
 let _reservaAcumuladaCache = 0;
+let _saldoOperacionalCache = 0;
 
 // ——— INIT ———
 document.addEventListener('DOMContentLoaded', async () => {
@@ -241,6 +242,7 @@ async function cargarTodo() {
     _historialCache = historial || {};
     _saldosCasasCache = saldosData.saldosCasas || {};
     _reservaAcumuladaCache = saldosData.reservaAcumulada || 0;
+    _saldoOperacionalCache = saldosData.saldoOperacional || 0;
     document.getElementById('inp-reserva').value = _reservaAcumuladaCache;
   } catch(e) {
     showToast('⚠️ Sin conexión — modo offline');
@@ -337,7 +339,7 @@ function getFormData() {
 function parseNum(val) { return parseInt(val) || 0; }
 
 // ——— CÁLCULO PRINCIPAL ———
-function calcBalance(data, saldosCasasAnteriores) {
+function calcBalance(data, saldosCasasAnteriores, saldoOpAnterior) {
   // Calcular estado de cada casa basado en saldo neto acumulado
   const casasCalc = data.casas.map(c => {
     const saldoAnterior = saldosCasasAnteriores[c.casa] || 0;
@@ -359,7 +361,7 @@ function calcBalance(data, saldosCasasAnteriores) {
   const gastosOperacionales = data.gastos.filter(g => g.imputar === 'operacional').reduce((s, g) => s + g.monto, 0);
   const gastosReserva = data.gastos.filter(g => g.imputar === 'reserva').reduce((s, g) => s + g.monto, 0);
 
-  const saldoOperacional = ingresoTotal - APORTE_RESERVA - gastosOperacionales;
+  const saldoOperacional = (saldoOpAnterior || 0) + ingresoTotal - APORTE_RESERVA - gastosOperacionales;
   const reservaNueva = data.reservaAnterior + APORTE_RESERVA - gastosReserva;
 
   return { casasCalc, ingresoTotal, gastosOperacionales, gastosReserva, saldoOperacional, reservaNueva };
@@ -371,7 +373,7 @@ async function guardarMes() {
   if (!data.mes || !data.anio) return showToast('Completa mes y año');
 
   const key = `${data.mes}-${data.anio}`;
-  const calc = calcBalance(data, _saldosCasasCache);
+  const calc = calcBalance(data, _saldosCasasCache, _saldoOperacionalCache);
 
   // Actualizar saldos por casa
   const nuevosSaldos = {};
@@ -393,11 +395,12 @@ async function guardarMes() {
   try {
     await Promise.all([
       apiPost({ action: 'save', key, payload: entrada }),
-      apiPost({ action: 'saveSaldos', payload: { saldosCasas: nuevosSaldos, reservaAcumulada: calc.reservaNueva } })
+      apiPost({ action: 'saveSaldos', payload: { saldosCasas: nuevosSaldos, reservaAcumulada: calc.reservaNueva, saldoOperacional: calc.saldoOperacional } })
     ]);
     _historialCache[key] = entrada;
     _saldosCasasCache = nuevosSaldos;
     _reservaAcumuladaCache = calc.reservaNueva;
+    _saldoOperacionalCache = calc.saldoOperacional;
     document.getElementById('inp-reserva').value = calc.reservaNueva;
     showToast('✓ Guardado en Google Sheets');
     renderResumen(entrada);
@@ -513,9 +516,13 @@ function renderEstado() {
 
   let html = `
     <div class="resumen-grid">
-      <div class="resumen-box gold" style="grid-column:1/-1">
+      <div class="resumen-box gold">
         <span class="resumen-val">$${fmt(_reservaAcumuladaCache)}</span>
-        <span class="resumen-lbl">🏦 Fondo de reserva acumulado</span>
+        <span class="resumen-lbl">🏦 Fondo reserva</span>
+      </div>
+      <div class="resumen-box ${_saldoOperacionalCache >= 0 ? 'accent' : 'danger'}">
+        <span class="resumen-val">$${fmt(_saldoOperacionalCache)}</span>
+        <span class="resumen-lbl">💼 Saldo operacional</span>
       </div>
     </div>
     <div class="card">
@@ -850,4 +857,3 @@ function actualizarHeaderMes() {
 </script>
 </body>
 </html>
-
