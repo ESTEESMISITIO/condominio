@@ -671,7 +671,7 @@ function generarPDFDato(data) {
     { label: 'INGRESOS', val: fmtN(data.ingresoTotal), col: [232,240,230] },
     { label: 'GASTOS OPER.', val: fmtN(data.gastosOperacionales), col: [245,242,235] },
     { label: 'SALDO OPERACIONAL', val: (data.saldoOperacional>=0?'+':'') + fmtN(data.saldoOperacional), col: data.saldoOperacional>=0?[232,240,230]:[245,232,232] },
-    { label: 'FONDO RESERVA', val: '+' + fmtN(data.reservaNueva), col: [253,246,227] },
+    { label: 'FONDO RESERVA', val: (data.reservaNueva >= 0 ? '+' : '') + fmtN(data.reservaNueva), col: [253,246,227] },
   ];
   const bw = (W - mg*2 - 8) / 2;
   boxes.forEach((b, i) => {
