@@ -103,7 +103,7 @@
   .historial-detail { display: none; margin-top: 11px; border-top: 1px solid var(--border); padding-top: 9px; font-size: 12px; color: var(--ink-soft); line-height: 1.7; }
   .historial-item.open .historial-detail { display: block; }
 
-  .toast { position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 9px 18px; border-radius: 30px; font-size: 12px; font-weight: 500; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999; white-space: nowrap; }
+  .toast { position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 16px; font-size: 12px; font-weight: 500; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999; max-width: 88vw; text-align: center; line-height: 1.4; }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   .divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
@@ -140,7 +140,7 @@
     <div class="row-2">
       <div>
         <label>Mes</label>
-        <select id="inp-mes">
+        <select id="inp-mes" onchange="actualizarReservaPreview()">
           <option>Enero</option><option>Febrero</option><option>Marzo</option>
           <option>Abril</option><option>Mayo</option><option selected>Junio</option>
           <option>Julio</option><option>Agosto</option><option>Septiembre</option>
@@ -149,7 +149,7 @@
       </div>
       <div>
         <label>Año</label>
-        <input type="number" id="inp-anio" value="2026" min="2020" max="2040">
+        <input type="number" id="inp-anio" value="2026" min="2020" max="2040" onchange="actualizarReservaPreview()">
       </div>
     </div>
     <label>Vencimiento de pago</label>
@@ -173,8 +173,9 @@
     <div class="card-title"><span class="icon">🏦</span> Fondo de reserva</div>
     <div class="info-row"><span>Aporte mensual fijo</span><strong>$45.000</strong></div>
     <div style="margin-top:8px">
-      <label>Saldo acumulado anterior (se autocompleta)</label>
+      <label>Saldo acumulado anterior</label>
       <input type="number" id="inp-reserva" placeholder="ej: 60000" min="0" value="0">
+      <p id="reserva-nota" style="font-size:11px;color:var(--ink-soft);margin-top:-6px;margin-bottom:10px">Se calcula automáticamente según el mes anterior en el historial.</p>
     </div>
   </div>
 
@@ -228,6 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showLoading(true, 'Cargando datos...');
   await cargarTodo();
   showLoading(false);
+  actualizarReservaPreview();
   renderEstado();
   renderHistorial();
   actualizarHeaderMes();
@@ -367,13 +369,79 @@ function calcBalance(data, saldosCasasAnteriores, saldoOpAnterior) {
   return { casasCalc, ingresoTotal, gastosOperacionales, gastosReserva, saldoOperacional, reservaNueva };
 }
 
-// ——— GUARDAR ———
+const MESES_ORDEN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function ordenMes(mes, anio) { return parseInt(anio) * 12 + MESES_ORDEN.indexOf(mes); }
+
+// Devuelve la entrada del historial correspondiente al mes calendario más reciente
+// (no al último guardado — evita romperse si se corrige un mes antiguo)
+function getUltimoMes() {
+  const keys = Object.keys(_historialCache);
+  if (keys.length === 0) return null;
+  let mejor = null, mejorOrden = -Infinity;
+  keys.forEach(k => {
+    const entry = _historialCache[k];
+    const o = ordenMes(entry.mes, entry.anio);
+    if (o > mejorOrden) { mejorOrden = o; mejor = entry; }
+  });
+  return mejor;
+}
+
+// Busca el mes calendario inmediatamente anterior al (mes,anio) dado, dentro del historial,
+// excluyendo la propia clave que se está guardando. Devuelve null si no hay mes anterior.
+function obtenerEstadoAnterior(currentKey, mes, anio) {
+  const ordenActual = ordenMes(mes, anio);
+  let mejor = null, mejorOrden = -Infinity;
+  Object.keys(_historialCache).forEach(k => {
+    if (k === currentKey) return;
+    const entry = _historialCache[k];
+    const o = ordenMes(entry.mes, entry.anio);
+    if (o < ordenActual && o > mejorOrden) { mejorOrden = o; mejor = entry; }
+  });
+  if (!mejor) return null;
+  const saldosCasas = {};
+  (mejor.casasCalc || []).forEach(c => { saldosCasas[c.casa] = c.saldoNuevo; });
+  return {
+    reservaAnterior: mejor.reservaNueva || 0,
+    saldoOperacionalAnterior: mejor.saldoOperacional || 0,
+    saldosCasas
+  };
+}
+
+// Actualiza el campo "saldo anterior" según el mes calendario elegido, tomándolo del historial real
+function actualizarReservaPreview() {
+  const mes = document.getElementById('inp-mes').value;
+  const anio = document.getElementById('inp-anio').value;
+  const key = `${mes}-${anio}`;
+  const input = document.getElementById('inp-reserva');
+  const nota = document.getElementById('reserva-nota');
+  const anteriorReal = obtenerEstadoAnterior(key, mes, anio);
+  if (anteriorReal) {
+    input.value = anteriorReal.reservaAnterior;
+    input.readOnly = true;
+    input.style.opacity = '0.65';
+    nota.textContent = 'Calculado automáticamente desde el mes anterior en el historial.';
+  } else {
+    input.readOnly = false;
+    input.style.opacity = '1';
+    nota.textContent = 'No hay mes anterior registrado — ingresa el saldo inicial manualmente (solo la primera vez).';
+  }
+}
 async function guardarMes() {
   const data = getFormData();
   if (!data.mes || !data.anio) return showToast('Completa mes y año');
 
   const key = `${data.mes}-${data.anio}`;
-  const calc = calcBalance(data, _saldosCasasCache, _saldoOperacionalCache);
+
+  // Siempre recalculamos el "anterior" a partir del historial real (mes calendario previo),
+  // nunca desde un contador acumulado — así guardar el mismo mes dos veces no duplica el aporte.
+  const anteriorReal = obtenerEstadoAnterior(key, data.mes, data.anio);
+  if (anteriorReal) {
+    data.reservaAnterior = anteriorReal.reservaAnterior;
+  } // si no hay mes anterior, se respeta el valor ingresado manualmente (primer mes del sistema)
+  const saldosCasasBase = anteriorReal ? anteriorReal.saldosCasas : {};
+  const saldoOpBase = anteriorReal ? anteriorReal.saldoOperacionalAnterior : 0;
+
+  const calc = calcBalance(data, saldosCasasBase, saldoOpBase);
 
   // Actualizar saldos por casa
   const nuevosSaldos = {};
@@ -391,6 +459,10 @@ async function guardarMes() {
     savedAt: new Date().toISOString()
   };
 
+  // ¿Es este el mes más reciente, o se está corrigiendo uno anterior?
+  const ultimoAntesDeGuardar = getUltimoMes();
+  const esMesMasReciente = !ultimoAntesDeGuardar || ordenMes(data.mes, data.anio) >= ordenMes(ultimoAntesDeGuardar.mes, ultimoAntesDeGuardar.anio);
+
   showLoading(true, 'Guardando...');
   try {
     await Promise.all([
@@ -398,11 +470,18 @@ async function guardarMes() {
       apiPost({ action: 'saveSaldos', payload: { saldosCasas: nuevosSaldos, reservaAcumulada: calc.reservaNueva, saldoOperacional: calc.saldoOperacional } })
     ]);
     _historialCache[key] = entrada;
-    _saldosCasasCache = nuevosSaldos;
-    _reservaAcumuladaCache = calc.reservaNueva;
-    _saldoOperacionalCache = calc.saldoOperacional;
-    document.getElementById('inp-reserva').value = calc.reservaNueva;
-    showToast('✓ Guardado en Google Sheets');
+
+    if (esMesMasReciente) {
+      // Actualizamos los contadores "en vivo" solo si este es el mes más nuevo
+      _saldosCasasCache = nuevosSaldos;
+      _reservaAcumuladaCache = calc.reservaNueva;
+      _saldoOperacionalCache = calc.saldoOperacional;
+      showToast('✓ Guardado en Google Sheets');
+    } else {
+      showToast('⚠️ Guardado. Como corregiste un mes anterior, vuelve a guardar los meses posteriores para actualizar sus totales.');
+    }
+
+    actualizarReservaPreview();
     renderResumen(entrada);
     renderEstado();
     renderHistorial();
@@ -514,14 +593,19 @@ function renderEstado() {
   const estadoTab = document.querySelectorAll('.tab-btn')[2];
   estadoTab.innerHTML = `🏠 Estado${pendienteCount > 0 ? `<span class="badge-count">${pendienteCount}</span>` : ''}`;
 
+  // Mostrar siempre los valores del mes calendario más reciente (no del último guardado)
+  const ultimo = getUltimoMes();
+  const reservaMostrar = ultimo ? ultimo.reservaNueva : _reservaAcumuladaCache;
+  const saldoOpMostrar = ultimo ? ultimo.saldoOperacional : _saldoOperacionalCache;
+
   let html = `
     <div class="resumen-grid">
       <div class="resumen-box gold">
-        <span class="resumen-val">+$${fmt(_reservaAcumuladaCache)}</span>
+        <span class="resumen-val">+$${fmt(reservaMostrar)}</span>
         <span class="resumen-lbl">🏦 Fondo reserva</span>
       </div>
-      <div class="resumen-box ${_saldoOperacionalCache >= 0 ? 'accent' : 'danger'}">
-        <span class="resumen-val">$${fmt(_saldoOperacionalCache)}</span>
+      <div class="resumen-box ${saldoOpMostrar >= 0 ? 'accent' : 'danger'}">
+        <span class="resumen-val">$${fmt(saldoOpMostrar)}</span>
         <span class="resumen-lbl">💼 Saldo operacional</span>
       </div>
     </div>
@@ -564,7 +648,7 @@ async function saldarDeuda() {
   _saldosCasasCache[casa] = (_saldosCasasCache[casa] || 0) + monto;
   showLoading(true, 'Guardando...');
   try {
-    await apiPost({ action: 'saveSaldos', payload: { saldosCasas: _saldosCasasCache, reservaAcumulada: _reservaAcumuladaCache } });
+    await apiPost({ action: 'saveSaldos', payload: { saldosCasas: _saldosCasasCache, reservaAcumulada: _reservaAcumuladaCache, saldoOperacional: _saldoOperacionalCache } });
     renderEstado();
     showToast(`✓ Pago de Casa ${casa} registrado`);
   } catch(e) { showToast('❌ Error al guardar'); }
@@ -619,9 +703,9 @@ async function eliminarMes(key) {
 
 // ——— PDF ———
 function generarPDF() {
-  const keys = Object.keys(_historialCache);
-  if (keys.length === 0) return showToast('Guarda el mes primero');
-  generarPDFDato(_historialCache[keys[keys.length - 1]]);
+  const ultimo = getUltimoMes();
+  if (!ultimo) return showToast('Guarda el mes primero');
+  generarPDFDato(ultimo);
 }
 
 function generarPDFDato(data) {
@@ -818,7 +902,9 @@ function escJson(d) { return JSON.stringify(d).replace(/</g,'&lt;').replace(/>/g
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  const duracion = msg.length > 50 ? 5000 : 2500;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), duracion);
 }
 
 function showLoading(on, msg='') {
@@ -840,18 +926,17 @@ function showTab(tab, btn) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   btn.classList.add('active');
   if (tab === 'resumen') {
-    const keys = Object.keys(_historialCache);
-    if (keys.length > 0) renderResumen(_historialCache[keys[keys.length-1]]);
+    const ultimo = getUltimoMes();
+    if (ultimo) renderResumen(ultimo);
   }
   if (tab === 'historial') renderHistorial();
   if (tab === 'estado') renderEstado();
 }
 
 function actualizarHeaderMes() {
-  const keys = Object.keys(_historialCache);
-  if (keys.length > 0) {
-    const u = _historialCache[keys[keys.length-1]];
-    document.getElementById('header-mes').textContent = `${u.mes} ${u.anio}`;
+  const ultimo = getUltimoMes();
+  if (ultimo) {
+    document.getElementById('header-mes').textContent = `${ultimo.mes} ${ultimo.anio}`;
   }
 }
 </script>
