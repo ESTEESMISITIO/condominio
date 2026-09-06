@@ -171,7 +171,9 @@
 
   <div class="card">
     <div class="card-title"><span class="icon">🏦</span> Fondo de reserva</div>
-    <div class="info-row"><span>Aporte mensual fijo</span><strong>$45.000</strong></div>
+    <div class="info-row"><span>Aporte por casa (si paga completo)</span><strong>$9.000</strong></div>
+    <div class="info-row"><span>Aporte máximo (5 casas al día)</span><strong>$45.000</strong></div>
+    <p style="font-size:11px;color:var(--ink-soft);margin-top:2px">Si una casa no paga, se pierde su aporte de $9.000 a reserva y $11.000 a operacional.</p>
     <div style="margin-top:8px">
       <label>Saldo acumulado anterior</label>
       <input type="number" id="inp-reserva" placeholder="ej: 60000" min="0" value="0">
@@ -215,7 +217,9 @@
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUu4gt3EhDCdpTDgpIOMIUI-pD0hMY5SXVlLcvaQBCcamTVpKOoUS4Bd_kJhBZurL2/exec';
 const CASAS = ['A','B','C','D','E'];
 const CUOTA_BASE = 20000;
-const APORTE_RESERVA = 45000;
+const CUOTA_RESERVA = 9000;   // parte de la cuota de cada casa que va al fondo de reserva
+const CUOTA_OPERACIONAL = 11000; // parte de la cuota de cada casa que va a gastos operacionales
+const APORTE_RESERVA = CUOTA_RESERVA * 5; // $45.000 solo si las 5 casas pagan completo
 let gastoCounter = 0;
 let _historialCache = {};
 let _saldosCasasCache = {};
@@ -349,24 +353,32 @@ function calcBalance(data, saldosCasasAnteriores, saldoOpAnterior) {
     const saldoNuevo = saldoAnterior + diferencia;
     const pagado = saldoNuevo >= 0;
     const saldoPendiente = pagado ? 0 : Math.abs(saldoNuevo);
+    // De lo que efectivamente pagó esta casa: primero se cubre la parte de reserva ($9.000),
+    // el resto (si alcanza) va a operacional. Si no pagó, no aporta a ninguna de las dos.
+    const aporteReserva = Math.min(c.montoPagado, CUOTA_RESERVA);
+    const aporteOperacional = Math.max(0, c.montoPagado - CUOTA_RESERVA);
     return {
       casa: c.casa,
       montoPagado: c.montoPagado,
       saldoAnterior,
       saldoNuevo,
       pagado,
-      saldoPendiente
+      saldoPendiente,
+      aporteReserva,
+      aporteOperacional
     };
   });
 
   const ingresoTotal = data.casas.reduce((s, c) => s + c.montoPagado, 0);
+  const aporteReservaReal = casasCalc.reduce((s, c) => s + c.aporteReserva, 0);
+  const ingresoOperacionalReal = casasCalc.reduce((s, c) => s + c.aporteOperacional, 0);
   const gastosOperacionales = data.gastos.filter(g => g.imputar === 'operacional').reduce((s, g) => s + g.monto, 0);
   const gastosReserva = data.gastos.filter(g => g.imputar === 'reserva').reduce((s, g) => s + g.monto, 0);
 
-  const saldoOperacional = (saldoOpAnterior || 0) + ingresoTotal - APORTE_RESERVA - gastosOperacionales;
-  const reservaNueva = data.reservaAnterior + APORTE_RESERVA - gastosReserva;
+  const saldoOperacional = (saldoOpAnterior || 0) + ingresoOperacionalReal - gastosOperacionales;
+  const reservaNueva = data.reservaAnterior + aporteReservaReal - gastosReserva;
 
-  return { casasCalc, ingresoTotal, gastosOperacionales, gastosReserva, saldoOperacional, reservaNueva };
+  return { casasCalc, ingresoTotal, aporteReservaReal, ingresoOperacionalReal, gastosOperacionales, gastosReserva, saldoOperacional, reservaNueva };
 }
 
 const MESES_ORDEN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -451,6 +463,8 @@ async function guardarMes() {
     ...data,
     casasCalc: calc.casasCalc,
     ingresoTotal: calc.ingresoTotal,
+    aporteReservaReal: calc.aporteReservaReal,
+    ingresoOperacionalReal: calc.ingresoOperacionalReal,
     gastosOperacionales: calc.gastosOperacionales,
     gastosReserva: calc.gastosReserva,
     saldoOperacional: calc.saldoOperacional,
@@ -563,10 +577,12 @@ function renderResumen(data) {
   }
 
   // Detalle fondo reserva
+  const aporteReal = data.aporteReservaReal != null ? data.aporteReservaReal : APORTE_RESERVA;
+  const aporteIncompleto = aporteReal < APORTE_RESERVA;
   html += `<div class="card">
     <div class="card-title"><span class="icon">🏦</span> Detalle Fondo Reserva</div>
     <div class="info-row"><span>Saldo anterior</span><strong>$${fmt(data.reservaAnterior)}</strong></div>
-    <div class="info-row"><span>+ Aporte mensual</span><strong>$${fmt(APORTE_RESERVA)}</strong></div>
+    <div class="info-row"><span>+ Aporte del mes ${aporteIncompleto ? '(incompleto, hay casas que no pagaron)' : ''}</span><strong style="${aporteIncompleto ? 'color:var(--danger)' : ''}">$${fmt(aporteReal)}</strong></div>
     ${data.gastosReserva > 0 ? `<div class="info-row"><span>− Gastos imputados</span><strong style="color:var(--danger)">$${fmt(data.gastosReserva)}</strong></div>` : ''}
     <hr class="divider">
     <div class="info-row"><span style="font-weight:700">Saldo fondo reserva</span><strong style="color:var(--gold);font-size:15px">$${fmt(data.reservaNueva)}</strong></div>
@@ -723,6 +739,7 @@ function generarPDFDato(data) {
   data.saldoOperacional = nv(data.saldoOperacional);
   data.reservaNueva = nv(data.reservaNueva);
   data.reservaAnterior = nv(data.reservaAnterior);
+  data.aporteReservaReal = data.aporteReservaReal != null ? nv(data.aporteReservaReal) : APORTE_RESERVA;
   data.casasCalc = (data.casasCalc || []).map(c => ({
     ...c, montoPagado: nv(c.montoPagado), saldoPendiente: nv(c.saldoPendiente)
   }));
@@ -844,7 +861,7 @@ function generarPDFDato(data) {
   const alturaReserva = data.gastosReserva>0 ? 22 : 16; doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,alturaReserva,'F');
   doc.setFontSize(8.5); doc.setFont('helvetica','normal');
   doc.text(`Saldo anterior: ${fmtN(data.reservaAnterior)}`, mg+3, y+5);
-  doc.text(`+ Aporte mensual: ${fmtN(APORTE_RESERVA)}`, mg+3, y+11);
+  doc.text(`+ Aporte mensual: ${fmtN(data.aporteReservaReal != null ? data.aporteReservaReal : APORTE_RESERVA)}`, mg+3, y+11);
   if (data.gastosReserva > 0) { doc.setTextColor(139,46,46); doc.text(`− Gastos imputados: ${fmtN(data.gastosReserva)}`, mg+3, y+17); doc.setTextColor(28,26,22); }
   doc.setFont('helvetica','bold'); doc.setFontSize(10);
   doc.text(`= ${fmtN(data.reservaNueva)}`, W-mg-3, y+(data.gastosReserva>0?17:11), {align:'right'});
