@@ -353,10 +353,10 @@ function calcBalance(data, saldosCasasAnteriores, saldoOpAnterior) {
     const saldoNuevo = saldoAnterior + diferencia;
     const pagado = saldoNuevo >= 0;
     const saldoPendiente = pagado ? 0 : Math.abs(saldoNuevo);
-    // De lo que efectivamente pagó esta casa: primero se cubre la parte de reserva ($9.000),
-    // el resto (si alcanza) va a operacional. Si no pagó, no aporta a ninguna de las dos.
-    const aporteReserva = Math.min(c.montoPagado, CUOTA_RESERVA);
-    const aporteOperacional = Math.max(0, c.montoPagado - CUOTA_RESERVA);
+    // De lo que efectivamente pagó esta casa: primero se cubre la parte operacional ($11.000),
+    // el resto (si alcanza) va a reserva. Si no pagó, no aporta a ninguna de las dos.
+    const aporteOperacional = Math.min(c.montoPagado, CUOTA_OPERACIONAL);
+    const aporteReserva = Math.max(0, c.montoPagado - CUOTA_OPERACIONAL);
     return {
       casa: c.casa,
       montoPagado: c.montoPagado,
