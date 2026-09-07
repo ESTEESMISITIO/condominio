@@ -233,6 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showLoading(true, 'Cargando datos...');
   await cargarTodo();
   showLoading(false);
+  posicionarMesSiguiente();
   actualizarReservaPreview();
   renderEstado();
   renderHistorial();
@@ -475,6 +476,19 @@ async function recalcularTodosLosSaldos() {
 }
 
 // Actualiza el campo "saldo anterior" según el mes calendario elegido, tomándolo del historial real
+// Al abrir la app, deja el formulario listo para el mes SIGUIENTE al último guardado
+// (en vez de quedar siempre en Junio), para no aparecer editando un mes viejo por defecto.
+function posicionarMesSiguiente() {
+  const ultimo = getUltimoMes();
+  if (!ultimo) return; // sin historial aún, se deja el valor por defecto del HTML
+  const idxUltimo = MESES_ORDEN.indexOf(ultimo.mes);
+  let idxSiguiente = idxUltimo + 1;
+  let anioSiguiente = parseInt(ultimo.anio);
+  if (idxSiguiente > 11) { idxSiguiente = 0; anioSiguiente += 1; }
+  document.getElementById('inp-mes').value = MESES_ORDEN[idxSiguiente];
+  document.getElementById('inp-anio').value = anioSiguiente;
+}
+
 function actualizarReservaPreview() {
   const mes = document.getElementById('inp-mes').value;
   const anio = document.getElementById('inp-anio').value;
@@ -491,6 +505,59 @@ function actualizarReservaPreview() {
     input.readOnly = false;
     input.style.opacity = '1';
     nota.textContent = 'No hay mes anterior registrado — ingresa el saldo inicial manualmente (solo la primera vez).';
+  }
+  cargarMesExistente(key);
+}
+
+// Si el mes elegido ya existe en el historial, precarga el formulario con esos datos
+// para poder corregirlos sin tener que reescribir todo desde cero.
+let _avisoEdicionMostrado = false;
+function cargarMesExistente(key) {
+  const banner = document.getElementById('editando-mes-banner');
+  const entry = _historialCache[key];
+
+  if (!entry) {
+    if (banner) banner.remove();
+    return;
+  }
+
+  // Casas
+  (entry.casas || []).forEach(c => {
+    const input = document.getElementById(`monto-${c.casa}`);
+    if (input) input.value = c.montoPagado;
+  });
+
+  // Vencimiento
+  document.getElementById('inp-vencimiento').value = entry.venc || '';
+
+  // Notas
+  document.getElementById('inp-notas').value = entry.notas || '';
+
+  // Gastos: limpiar los actuales y recrear desde la entrada guardada
+  document.getElementById('gastos-container').innerHTML = '';
+  gastoCounter = 0;
+  if (entry.gastos && entry.gastos.length > 0) {
+    entry.gastos.forEach(g => {
+      addGasto();
+      const id = gastoCounter;
+      document.getElementById(`gdesc-${id}`).value = g.desc;
+      document.getElementById(`gmonto-${id}`).value = g.monto;
+      document.getElementById(`gimput-${id}`).value = g.imputar || 'operacional';
+    });
+  } else {
+    addGasto(); addGasto();
+  }
+
+  // Aviso de que se está editando un mes ya guardado
+  if (!banner) {
+    const card = document.getElementById('casas-container').closest('.card');
+    const div = document.createElement('div');
+    div.id = 'editando-mes-banner';
+    div.style.cssText = 'background:var(--gold-light);border:1px solid #e0ccaa;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ink)';
+    div.textContent = `✏️ Editando ${entry.mes} ${entry.anio} — ya existía en el historial, se precargaron sus datos.`;
+    card.parentNode.insertBefore(div, card);
+  } else {
+    banner.textContent = `✏️ Editando ${entry.mes} ${entry.anio} — ya existía en el historial, se precargaron sus datos.`;
   }
 }
 
