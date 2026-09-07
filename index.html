@@ -247,6 +247,9 @@ async function cargarTodo() {
       jsonpGet('getSaldos')
     ]);
     _historialCache = historial || {};
+    // Autocorregimos la capitalización del mes en cada entrada cargada (por datos viejos
+    // guardados en minúscula); la próxima vez que se guarde cualquier mes, esto queda persistido.
+    Object.values(_historialCache).forEach(e => { if (e && e.mes) e.mes = normalizarMes(e.mes); });
     _saldosCasasCache = saldosData.saldosCasas || {};
     _reservaAcumuladaCache = saldosData.reservaAcumulada || 0;
     _saldoOperacionalCache = saldosData.saldoOperacional || 0;
@@ -383,7 +386,14 @@ function calcBalance(data, saldosCasasAnteriores, saldoOpAnterior) {
 }
 
 const MESES_ORDEN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-function ordenMes(mes, anio) { return parseInt(anio) * 12 + MESES_ORDEN.indexOf(mes); }
+// Devuelve el nombre del mes bien capitalizado sin importar cómo venga guardado
+// (ej: "septiembre", "SEPTIEMBRE" o "Septiembre" -> siempre "Septiembre")
+function normalizarMes(mes) {
+  if (!mes) return mes;
+  const idx = MESES_ORDEN.findIndex(m => m.toLowerCase() === String(mes).trim().toLowerCase());
+  return idx >= 0 ? MESES_ORDEN[idx] : mes;
+}
+function ordenMes(mes, anio) { return parseInt(anio) * 12 + MESES_ORDEN.indexOf(normalizarMes(mes)); }
 
 // Devuelve la entrada del historial correspondiente al mes calendario más reciente
 // (no al último guardado — evita romperse si se corrige un mes antiguo)
@@ -813,13 +823,21 @@ function renderHistorial() {
 // Salta desde el Historial directo a "Ingresar" con ese mes precargado
 function editarMes(key) {
   const entry = _historialCache[key];
-  if (!entry) return;
-  document.getElementById('inp-mes').value = entry.mes;
-  document.getElementById('inp-anio').value = entry.anio;
-  actualizarReservaPreview(); // esto ya llama a cargarMesExistente() internamente
+  if (!entry) {
+    showToast('❌ No se encontró ese mes en el historial cargado');
+    return;
+  }
 
+  // Primero cambiamos de pestaña...
   const tabIngresar = document.querySelectorAll('.tab-btn')[0];
   showTab('ingresar', tabIngresar);
+
+  // ...y recién ahí seteamos mes/año y forzamos la carga de datos explícitamente
+  document.getElementById('inp-mes').value = normalizarMes(entry.mes);
+  document.getElementById('inp-anio').value = entry.anio;
+  actualizarReservaPreview();
+  cargarMesExistente(key);
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
   showToast(`✏️ Editando ${entry.mes} ${entry.anio}`);
 }
