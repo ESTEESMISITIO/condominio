@@ -419,6 +419,61 @@ function obtenerEstadoAnterior(currentKey, mes, anio) {
   };
 }
 
+// Recalcula TODO el historial en orden cronológico, de modo que cualquier cambio
+// (guardar, corregir o eliminar un mes) deje los totales siempre consistentes.
+async function recalcularTodosLosSaldos() {
+  const entradas = Object.keys(_historialCache)
+    .map(k => _historialCache[k])
+    .sort((a, b) => ordenMes(a.mes, a.anio) - ordenMes(b.mes, b.anio));
+
+  let saldosCasas = {};
+  let reservaAcumulada = 0;
+  let saldoOperacional = 0;
+  const actualizadas = [];
+
+  entradas.forEach((entry, idx) => {
+    // El primer mes del historial respeta el saldo inicial ingresado manualmente (semilla).
+    // Todos los meses siguientes usan el resultado real del mes calendario anterior.
+    const reservaAnteriorUsar = idx === 0 ? (parseFloat(entry.reservaAnterior) || 0) : reservaAcumulada;
+    const dataTmp = {
+      mes: entry.mes, anio: entry.anio, venc: entry.venc,
+      casas: entry.casas, gastos: entry.gastos,
+      reservaAnterior: reservaAnteriorUsar, notas: entry.notas
+    };
+    const calc = calcBalance(dataTmp, saldosCasas, saldoOperacional);
+    const nuevaEntrada = {
+      ...entry,
+      casasCalc: calc.casasCalc,
+      ingresoTotal: calc.ingresoTotal,
+      aporteReservaReal: calc.aporteReservaReal,
+      ingresoOperacionalReal: calc.ingresoOperacionalReal,
+      gastosOperacionales: calc.gastosOperacionales,
+      gastosReserva: calc.gastosReserva,
+      saldoOperacional: calc.saldoOperacional,
+      reservaAnterior: reservaAnteriorUsar,
+      reservaNueva: calc.reservaNueva
+    };
+    _historialCache[entry.key] = nuevaEntrada;
+    actualizadas.push(nuevaEntrada);
+
+    saldosCasas = {};
+    calc.casasCalc.forEach(c => { saldosCasas[c.casa] = c.saldoNuevo; });
+    reservaAcumulada = calc.reservaNueva;
+    saldoOperacional = calc.saldoOperacional;
+  });
+
+  // Persistir todos los meses recalculados + los saldos acumulados finales.
+  // Se hace en forma secuencial (no en paralelo) para evitar choques de escritura en Google Sheets.
+  for (const e of actualizadas) {
+    await apiPost({ action: 'save', key: e.key, payload: e });
+  }
+  await apiPost({ action: 'saveSaldos', payload: { saldosCasas, reservaAcumulada, saldoOperacional } });
+
+  _saldosCasasCache = saldosCasas;
+  _reservaAcumuladaCache = reservaAcumulada;
+  _saldoOperacionalCache = saldoOperacional;
+}
+
 // Actualiza el campo "saldo anterior" según el mes calendario elegido, tomándolo del historial real
 function actualizarReservaPreview() {
   const mes = document.getElementById('inp-mes').value;
@@ -438,65 +493,21 @@ function actualizarReservaPreview() {
     nota.textContent = 'No hay mes anterior registrado — ingresa el saldo inicial manualmente (solo la primera vez).';
   }
 }
+
 async function guardarMes() {
   const data = getFormData();
   if (!data.mes || !data.anio) return showToast('Completa mes y año');
 
   const key = `${data.mes}-${data.anio}`;
+  const entradaCruda = { ...data, key, savedAt: new Date().toISOString() };
+  _historialCache[key] = entradaCruda;
 
-  // Siempre recalculamos el "anterior" a partir del historial real (mes calendario previo),
-  // nunca desde un contador acumulado — así guardar el mismo mes dos veces no duplica el aporte.
-  const anteriorReal = obtenerEstadoAnterior(key, data.mes, data.anio);
-  if (anteriorReal) {
-    data.reservaAnterior = anteriorReal.reservaAnterior;
-  } // si no hay mes anterior, se respeta el valor ingresado manualmente (primer mes del sistema)
-  const saldosCasasBase = anteriorReal ? anteriorReal.saldosCasas : {};
-  const saldoOpBase = anteriorReal ? anteriorReal.saldoOperacionalAnterior : 0;
-
-  const calc = calcBalance(data, saldosCasasBase, saldoOpBase);
-
-  // Actualizar saldos por casa
-  const nuevosSaldos = {};
-  calc.casasCalc.forEach(c => { nuevosSaldos[c.casa] = c.saldoNuevo; });
-
-  const entrada = {
-    ...data,
-    casasCalc: calc.casasCalc,
-    ingresoTotal: calc.ingresoTotal,
-    aporteReservaReal: calc.aporteReservaReal,
-    ingresoOperacionalReal: calc.ingresoOperacionalReal,
-    gastosOperacionales: calc.gastosOperacionales,
-    gastosReserva: calc.gastosReserva,
-    saldoOperacional: calc.saldoOperacional,
-    reservaNueva: calc.reservaNueva,
-    key,
-    savedAt: new Date().toISOString()
-  };
-
-  // ¿Es este el mes más reciente, o se está corrigiendo uno anterior?
-  const ultimoAntesDeGuardar = getUltimoMes();
-  const esMesMasReciente = !ultimoAntesDeGuardar || ordenMes(data.mes, data.anio) >= ordenMes(ultimoAntesDeGuardar.mes, ultimoAntesDeGuardar.anio);
-
-  showLoading(true, 'Guardando...');
+  showLoading(true, 'Guardando y recalculando...');
   try {
-    await Promise.all([
-      apiPost({ action: 'save', key, payload: entrada }),
-      apiPost({ action: 'saveSaldos', payload: { saldosCasas: nuevosSaldos, reservaAcumulada: calc.reservaNueva, saldoOperacional: calc.saldoOperacional } })
-    ]);
-    _historialCache[key] = entrada;
-
-    if (esMesMasReciente) {
-      // Actualizamos los contadores "en vivo" solo si este es el mes más nuevo
-      _saldosCasasCache = nuevosSaldos;
-      _reservaAcumuladaCache = calc.reservaNueva;
-      _saldoOperacionalCache = calc.saldoOperacional;
-      showToast('✓ Guardado en Google Sheets');
-    } else {
-      showToast('⚠️ Guardado. Como corregiste un mes anterior, vuelve a guardar los meses posteriores para actualizar sus totales.');
-    }
-
+    await recalcularTodosLosSaldos();
+    showToast('✓ Guardado — historial recalculado');
     actualizarReservaPreview();
-    renderResumen(entrada);
+    renderResumen(_historialCache[key]);
     renderEstado();
     renderHistorial();
     actualizarHeaderMes();
@@ -709,11 +720,18 @@ async function eliminarMes(key) {
   if (!confirm('¿Eliminar este mes del historial?')) return;
   showLoading(true, 'Eliminando...');
   try {
-    await apiPost({ action: 'delete', key });
+    const res = await apiPost({ action: 'delete', key });
+    if (!res || res.ok !== true) throw new Error('El servidor no confirmó la eliminación');
     delete _historialCache[key];
+    await recalcularTodosLosSaldos();
     renderHistorial();
-    showToast('Mes eliminado');
-  } catch(e) { showToast('❌ Error al eliminar'); }
+    renderEstado();
+    actualizarReservaPreview();
+    actualizarHeaderMes();
+    showToast('✓ Mes eliminado y saldos recalculados');
+  } catch(e) {
+    showToast('❌ No se pudo eliminar. Revisa el Apps Script y la conexión.');
+  }
   showLoading(false);
 }
 
