@@ -672,12 +672,38 @@ async function saldarDeuda() {
   const casa = document.getElementById('deuda-casa').value;
   const monto = parseNum(document.getElementById('deuda-monto').value);
   if (!monto) return showToast('Ingresa un monto');
+
+  // El pago actualiza la deuda de la casa...
   _saldosCasasCache[casa] = (_saldosCasasCache[casa] || 0) + monto;
+
+  // ...y también es plata real que entra: se reparte con la misma prioridad que un pago mensual
+  // (primero cubre operacional hasta $11.000, el resto va a reserva).
+  const aporteOperacional = Math.min(monto, CUOTA_OPERACIONAL);
+  const aporteReserva = Math.max(0, monto - CUOTA_OPERACIONAL);
+  _saldoOperacionalCache += aporteOperacional;
+  _reservaAcumuladaCache += aporteReserva;
+
   showLoading(true, 'Guardando...');
   try {
     await apiPost({ action: 'saveSaldos', payload: { saldosCasas: _saldosCasasCache, reservaAcumulada: _reservaAcumuladaCache, saldoOperacional: _saldoOperacionalCache } });
+
+    // Actualizamos también los totales del último mes guardado, para que Estado y el
+    // encabezado del Resumen queden consistentes con el pago recién registrado.
+    const ultimo = getUltimoMes();
+    if (ultimo) {
+      const entradaActualizada = {
+        ...ultimo,
+        reservaNueva: _reservaAcumuladaCache,
+        saldoOperacional: _saldoOperacionalCache
+      };
+      await apiPost({ action: 'save', key: ultimo.key, payload: entradaActualizada });
+      _historialCache[ultimo.key] = entradaActualizada;
+    }
+
     renderEstado();
-    showToast(`✓ Pago de Casa ${casa} registrado`);
+    renderResumen(getUltimoMes());
+    renderHistorial();
+    showToast(`✓ Pago de Casa ${casa} registrado (+$${fmt(aporteOperacional)} operacional, +$${fmt(aporteReserva)} reserva)`);
   } catch(e) { showToast('❌ Error al guardar'); }
   showLoading(false);
 }
