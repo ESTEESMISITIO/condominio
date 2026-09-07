@@ -801,12 +801,27 @@ function renderHistorial() {
           <div class="info-row"><span>Fondo reserva resultante</span><strong>$${fmt(d.reservaNueva)}</strong></div>
           <div class="info-row"><span>Casas con deuda</span><strong>${pendientes}</strong></div>
           ${d.notas ? `<hr class="divider"><p style="font-size:11px">${d.notas}</p>` : ''}
-          <button class="btn btn-pdf" style="margin-top:9px;padding:9px" onclick="event.stopPropagation();generarPDFDato(${escJson(d)})">📄 PDF este mes</button>
+          <button class="btn btn-secondary" style="margin-top:9px;padding:9px" onclick="event.stopPropagation();editarMes('${k}')">✏️ Editar mes</button>
+          <button class="btn btn-pdf" style="margin-top:5px;padding:9px" onclick="event.stopPropagation();generarPDFDato(${escJson(d)})">📄 PDF este mes</button>
           <button class="btn btn-secondary" style="margin-top:5px;padding:9px" onclick="event.stopPropagation();eliminarMes('${k}')">🗑 Eliminar mes</button>
         </div>
       </div>`;
   });
   document.getElementById('historial-content').innerHTML = html;
+}
+
+// Salta desde el Historial directo a "Ingresar" con ese mes precargado
+function editarMes(key) {
+  const entry = _historialCache[key];
+  if (!entry) return;
+  document.getElementById('inp-mes').value = entry.mes;
+  document.getElementById('inp-anio').value = entry.anio;
+  actualizarReservaPreview(); // esto ya llama a cargarMesExistente() internamente
+
+  const tabIngresar = document.querySelectorAll('.tab-btn')[0];
+  showTab('ingresar', tabIngresar);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast(`✏️ Editando ${entry.mes} ${entry.anio}`);
 }
 
 async function eliminarMes(key) {
