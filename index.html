@@ -393,6 +393,11 @@ function normalizarMes(mes) {
   const idx = MESES_ORDEN.findIndex(m => m.toLowerCase() === String(mes).trim().toLowerCase());
   return idx >= 0 ? MESES_ORDEN[idx] : mes;
 }
+// La CLAVE de almacenamiento siempre es en minúscula y estable, sin importar cómo el usuario
+// vea o escriba el mes. El nombre "bonito" (Septiembre, con mayúscula) es solo para mostrar.
+function claveCanonica(mes, anio) {
+  return `${normalizarMes(mes)}-${anio}`.toLowerCase();
+}
 function ordenMes(mes, anio) { return parseInt(anio) * 12 + MESES_ORDEN.indexOf(normalizarMes(mes)); }
 
 // Devuelve la entrada del historial correspondiente al mes calendario más reciente
@@ -502,7 +507,7 @@ function posicionarMesSiguiente() {
 function actualizarReservaPreview() {
   const mes = document.getElementById('inp-mes').value;
   const anio = document.getElementById('inp-anio').value;
-  const key = `${mes}-${anio}`;
+  const key = claveCanonica(mes, anio);
   const input = document.getElementById('inp-reserva');
   const nota = document.getElementById('reserva-nota');
   const anteriorReal = obtenerEstadoAnterior(key, mes, anio);
@@ -575,7 +580,8 @@ async function guardarMes() {
   const data = getFormData();
   if (!data.mes || !data.anio) return showToast('Completa mes y año');
 
-  const key = `${data.mes}-${data.anio}`;
+  const key = claveCanonica(data.mes, data.anio);
+  data.mes = normalizarMes(data.mes); // guardamos siempre el nombre del mes bien capitalizado
   const entradaCruda = { ...data, key, savedAt: new Date().toISOString() };
   _historialCache[key] = entradaCruda;
 
