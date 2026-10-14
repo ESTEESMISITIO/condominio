@@ -240,16 +240,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   actualizarHeaderMes();
 });
 
+// Reconstruye el historial con UNA sola entrada por mes-año (clave canónica),
+// sin importar cómo vengan escritas las claves desde el servidor.
+function deduplicarHistorial(raw) {
+  const out = {};
+  Object.keys(raw || {}).forEach(k => {
+    const e = raw[k];
+    if (!e || !e.mes || !e.anio) return;
+    e.mes = normalizarMes(e.mes);
+    const ck = claveCanonica(e.mes, e.anio);
+    const prev = out[ck];
+    if (!prev || String(e.savedAt || '') >= String(prev.savedAt || '')) out[ck] = e;
+  });
+  return out;
+}
+
 async function cargarTodo() {
   try {
     const [historial, saldosData] = await Promise.all([
       jsonpGet('getAll'),
       jsonpGet('getSaldos')
     ]);
-    _historialCache = historial || {};
-    // Autocorregimos la capitalización del mes en cada entrada cargada (por datos viejos
-    // guardados en minúscula); la próxima vez que se guarde cualquier mes, esto queda persistido.
-    Object.values(_historialCache).forEach(e => { if (e && e.mes) e.mes = normalizarMes(e.mes); });
+    _historialCache = deduplicarHistorial(historial || {});
     _saldosCasasCache = saldosData.saldosCasas || {};
     _reservaAcumuladaCache = saldosData.reservaAcumulada || 0;
     _saldoOperacionalCache = saldosData.saldoOperacional || 0;
@@ -446,19 +458,28 @@ async function recalcularTodosLosSaldos() {
   let reservaAcumulada = 0;
   let saldoOperacional = 0;
   const actualizadas = [];
+  // Reconstruimos el historial completo desde cero con claves canónicas (siempre en minúscula).
+  // Si había entradas duplicadas por una clave vieja mal capitalizada, acá se fusionan en una sola.
+  const nuevoHistorial = {};
+  let primeraEntradaVista = false;
 
-  entradas.forEach((entry, idx) => {
-    // El primer mes del historial respeta el saldo inicial ingresado manualmente (semilla).
-    // Todos los meses siguientes usan el resultado real del mes calendario anterior.
-    const reservaAnteriorUsar = idx === 0 ? (parseFloat(entry.reservaAnterior) || 0) : reservaAcumulada;
+  entradas.forEach((entry) => {
+    const claveEntry = claveCanonica(entry.mes, entry.anio);
+    if (nuevoHistorial[claveEntry]) return; // ya procesado este mes en esta misma pasada, se descarta el duplicado
+
+    const esPrimera = !primeraEntradaVista;
+    primeraEntradaVista = true;
+    const reservaAnteriorUsar = esPrimera ? (parseFloat(entry.reservaAnterior) || 0) : reservaAcumulada;
     const dataTmp = {
-      mes: entry.mes, anio: entry.anio, venc: entry.venc,
+      mes: normalizarMes(entry.mes), anio: entry.anio, venc: entry.venc,
       casas: entry.casas, gastos: entry.gastos,
       reservaAnterior: reservaAnteriorUsar, notas: entry.notas
     };
     const calc = calcBalance(dataTmp, saldosCasas, saldoOperacional);
     const nuevaEntrada = {
       ...entry,
+      mes: normalizarMes(entry.mes),
+      key: claveEntry,
       casasCalc: calc.casasCalc,
       ingresoTotal: calc.ingresoTotal,
       aporteReservaReal: calc.aporteReservaReal,
@@ -469,7 +490,7 @@ async function recalcularTodosLosSaldos() {
       reservaAnterior: reservaAnteriorUsar,
       reservaNueva: calc.reservaNueva
     };
-    _historialCache[entry.key] = nuevaEntrada;
+    nuevoHistorial[claveEntry] = nuevaEntrada;
     actualizadas.push(nuevaEntrada);
 
     saldosCasas = {};
@@ -477,6 +498,8 @@ async function recalcularTodosLosSaldos() {
     reservaAcumulada = calc.reservaNueva;
     saldoOperacional = calc.saldoOperacional;
   });
+
+  _historialCache = nuevoHistorial; // reemplaza todo — cualquier clave vieja/duplicada desaparece
 
   // Persistir todos los meses recalculados + los saldos acumulados finales.
   // Se hace en forma secuencial (no en paralelo) para evitar choques de escritura en Google Sheets.
@@ -793,7 +816,9 @@ async function saldarDeuda() {
 
 // ——— RENDER HISTORIAL ———
 function renderHistorial() {
-  const keys = Object.keys(_historialCache).reverse();
+  _historialCache = deduplicarHistorial(_historialCache);
+  const keys = Object.keys(_historialCache)
+    .sort((a, b) => ordenMes(_historialCache[b].mes, _historialCache[b].anio) - ordenMes(_historialCache[a].mes, _historialCache[a].anio));
   if (keys.length === 0) {
     document.getElementById('historial-content').innerHTML = `<div class="empty-state"><span class="emoji">📁</span>No hay meses registrados</div>`;
     return;
