@@ -265,7 +265,6 @@ async function cargarTodo() {
     _saldosCasasCache = saldosData.saldosCasas || {};
     _reservaAcumuladaCache = saldosData.reservaAcumulada || 0;
     _saldoOperacionalCache = saldosData.saldoOperacional || 0;
-    document.getElementById('inp-reserva').value = _reservaAcumuladaCache;
   } catch(e) {
     showToast('⚠️ Sin conexión — modo offline');
     _historialCache = {};
@@ -469,7 +468,11 @@ async function recalcularTodosLosSaldos() {
 
     const esPrimera = !primeraEntradaVista;
     primeraEntradaVista = true;
-    const reservaAnteriorUsar = esPrimera ? (parseFloat(entry.reservaAnterior) || 0) : reservaAcumulada;
+    // El primer mes del historial parte con la reserva inicial (0 en este condominio, que partió en Junio).
+    // Solo se respeta el valor ingresado a mano si es el ÚNICO mes registrado.
+    const reservaAnteriorUsar = esPrimera
+      ? (entradas.length === 1 ? (parseFloat(entry.reservaAnterior) || 0) : 0)
+      : reservaAcumulada;
     const dataTmp = {
       mes: normalizarMes(entry.mes), anio: entry.anio, venc: entry.venc,
       casas: entry.casas, gastos: entry.gastos,
