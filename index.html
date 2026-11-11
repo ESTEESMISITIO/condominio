@@ -116,6 +116,38 @@
   .imputar-tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; }
   .imputar-oper { background: var(--blue-light); color: var(--blue); }
   .imputar-reserva { background: var(--gold-light); color: var(--gold); }
+
+  /* MATRIZ DE PAGOS */
+  .matriz-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .matriz { border-collapse: separate; border-spacing: 0; font-size: 12px; min-width: 100%; }
+  .matriz th, .matriz td { padding: 0; }
+  .matriz thead th { font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ink-soft); padding: 4px 3px 8px; text-align: center; white-space: nowrap; }
+  .matriz thead th .anio { display: block; font-weight: 400; opacity: .7; letter-spacing: 0; }
+  .matriz thead th.alerta { color: var(--danger); }
+  .matriz thead th.alerta::after { content: ''; display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); margin: 3px auto 0; }
+  .matriz .col-casa { position: sticky; left: 0; z-index: 2; background: var(--paper); text-align: left !important; padding-right: 6px !important; font-weight: 700; font-size: 12px; white-space: nowrap; min-width: 50px; box-shadow: 6px 0 6px -6px rgba(0,0,0,.18); }
+  .matriz thead .col-casa { box-shadow: none; }
+  .matriz td.celda { padding: 3px; }
+  .matriz .c { min-width: 66px; border-radius: 7px; padding: 6px 4px; text-align: center; line-height: 1.25; border: 1px solid transparent; }
+  .matriz .c b { display: block; font-size: 13px; font-weight: 600; }
+  .matriz .c small { display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .2px; margin-top: 1px; }
+  .matriz .c small.abono { font-weight: 500; font-style: italic; opacity: .85; }
+  .c.ok { background: var(--accent-light); color: var(--accent); border-color: #c8dac4; }
+  .c.tarde { background: var(--gold-light); color: var(--gold); border-color: #e6d3a4; }
+  .c.parcial { background: #fdebd5; color: #9a5a12; border-color: #ecc79a; }
+  .c.deuda { background: var(--danger-light); color: var(--danger); border-color: #dcaaaa; box-shadow: inset 0 0 0 1px #dcaaaa; }
+  .matriz td.col-saldo, .matriz th.col-saldo { padding-left: 6px; text-align: center; }
+  .matriz .s { min-width: 70px; border-radius: 7px; padding: 6px 6px; text-align: center; font-size: 11px; font-weight: 700; line-height: 1.25; }
+  .s.ok { color: var(--accent); background: transparent; border: 1px dashed #c8dac4; }
+  .s.deuda { color: #fff; background: var(--danger); }
+  .matriz tfoot td { padding: 8px 3px 0; text-align: center; font-size: 11px; color: var(--ink-soft); font-weight: 600; border-top: 1px solid var(--border); }
+  .matriz tfoot td.col-casa { font-size: 10px; text-transform: uppercase; letter-spacing: .4px; font-weight: 700; box-shadow: none; }
+  .matriz-leyenda { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: 10.5px; color: var(--ink-soft); }
+  .matriz-leyenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; border: 1px solid; }
+  .matriz-leyenda .l-ok::before { background: var(--accent-light); border-color: #c8dac4; }
+  .matriz-leyenda .l-tarde::before { background: var(--gold-light); border-color: #e6d3a4; }
+  .matriz-leyenda .l-parcial::before { background: #fdebd5; border-color: #ecc79a; }
+  .matriz-leyenda .l-deuda::before { background: var(--danger-light); border-color: #dcaaaa; }
 </style>
 </head>
 <body>
@@ -240,63 +272,102 @@ document.addEventListener('DOMContentLoaded', async () => {
   actualizarHeaderMes();
 });
 
-// Reconstruye el historial con UNA sola entrada por mes-año (clave canónica),
-// sin importar cómo vengan escritas las claves desde el servidor.
-function deduplicarHistorial(raw) {
-  const out = {};
-  Object.keys(raw || {}).forEach(k => {
-    const e = raw[k];
-    if (!e || !e.mes || !e.anio) return;
-    e.mes = normalizarMes(e.mes);
-    const ck = claveCanonica(e.mes, e.anio);
-    const prev = out[ck];
-    if (!prev || String(e.savedAt || '') >= String(prev.savedAt || '')) out[ck] = e;
+// ——— DATOS CRUDOS Y CÁLCULO ———
+// El servidor guarda SOLO lo que se ingresa (meses, pagos, gastos, abonos). Todo saldo se calcula acá,
+// cada vez que se muestran los datos, así nunca puede quedar un total "viejo" guardado y descuadrado.
+let _raw = { meses: [], abonos: [], config: { reservaInicial: 0, saldoOperacionalInicial: 0 } };
+
+// Reparte lo pagado acumulado por una casa entre operacional y reserva: cada cuota de $20.000
+// cubre primero su parte operacional ($11.000) y luego su parte de reserva ($9.000).
+function repartirAcumulado(P) {
+  const completas = Math.floor(P / CUOTA_BASE);
+  const resto = P - completas * CUOTA_BASE;
+  const op = completas * CUOTA_OPERACIONAL + Math.min(resto, CUOTA_OPERACIONAL);
+  return { op, res: P - op };
+}
+
+function calcularHistorialPuro(raw) {
+  const meses = (raw.meses || []).slice().sort((a, b) => a.periodo - b.periodo);
+  const cfg = raw.config || {};
+  const acum = {};                       // por casa: { P: total pagado, n: meses cobrados }
+  CASAS.forEach(c => { acum[c] = { P: 0, n: 0 }; });
+  let reserva = Number(cfg.reservaInicial) || 0;
+  let saldoOp = Number(cfg.saldoOperacionalInicial) || 0;
+  const historial = {};
+  let saldosCasas = {};
+
+  meses.forEach(m => {
+    const reservaAnterior = reserva;
+    const abonosMes = (raw.abonos || []).filter(a => a.periodo === m.periodo);
+    let aporteReservaReal = 0, ingresoOperacionalReal = 0, ingresoTotal = 0;
+
+    const casasCalc = CASAS.map(c => {
+      const base = (m.casas.find(x => x.casa === c) || {}).montoPagado || 0;
+      const extra = abonosMes.filter(a => a.casa === c).reduce((t, a) => t + a.monto, 0);
+      const pagoMes = base + extra;
+      const st = acum[c];
+      const saldoAnterior = st.P - st.n * CUOTA_BASE;
+      const antes = repartirAcumulado(st.P);
+      st.P += pagoMes; st.n += 1;
+      const despues = repartirAcumulado(st.P);
+      const saldoNuevo = st.P - st.n * CUOTA_BASE;
+      const aporteOperacional = despues.op - antes.op;
+      const aporteReserva = despues.res - antes.res;
+      aporteReservaReal += aporteReserva;
+      ingresoOperacionalReal += aporteOperacional;
+      ingresoTotal += pagoMes;
+      const pagado = saldoNuevo >= 0;
+      return { casa: c, montoPagado: pagoMes, abonoDeuda: extra, saldoAnterior, saldoNuevo, pagado,
+               saldoPendiente: pagado ? 0 : Math.abs(saldoNuevo), aporteReserva, aporteOperacional };
+    });
+
+    const gastosOperacionales = m.gastos.filter(g => g.imputar === 'operacional').reduce((t, g) => t + g.monto, 0);
+    const gastosReserva = m.gastos.filter(g => g.imputar === 'reserva').reduce((t, g) => t + g.monto, 0);
+    saldoOp = saldoOp + ingresoOperacionalReal - gastosOperacionales;
+    reserva = reserva + aporteReservaReal - gastosReserva;
+
+    const key = claveCanonica(m.mes, m.anio);
+    historial[key] = {
+      periodo: m.periodo, mes: m.mes, anio: m.anio, venc: m.venc, notas: m.notas, savedAt: m.savedAt, key,
+      casas: m.casas, gastos: m.gastos, reservaAnterior, casasCalc, ingresoTotal,
+      aporteReservaReal, ingresoOperacionalReal, gastosOperacionales, gastosReserva,
+      saldoOperacional: saldoOp, reservaNueva: reserva
+    };
+    saldosCasas = {};
+    casasCalc.forEach(c => { saldosCasas[c.casa] = c.saldoNuevo; });
   });
-  return out;
+
+  return { historial, saldosCasas, reserva, saldoOp };
+}
+
+function aplicarDatos(data) {
+  _raw = { meses: data.meses || [], abonos: data.abonos || [], config: data.config || {} };
+  const r = calcularHistorialPuro(_raw);
+  _historialCache = r.historial;
+  _saldosCasasCache = r.saldosCasas;
+  _reservaAcumuladaCache = r.reserva;
+  _saldoOperacionalCache = r.saldoOp;
 }
 
 async function cargarTodo() {
   try {
-    const [historial, saldosData] = await Promise.all([
-      jsonpGet('getAll'),
-      jsonpGet('getSaldos')
-    ]);
-    _historialCache = deduplicarHistorial(historial || {});
-    _saldosCasasCache = saldosData.saldosCasas || {};
-    _reservaAcumuladaCache = saldosData.reservaAcumulada || 0;
-    _saldoOperacionalCache = saldosData.saldoOperacional || 0;
+    const res = await jsonpGet('getData');
+    if (!res || res.ok !== true || !res.data || res.data.version !== 2) {
+      throw new Error(res && res.error ? res.error : 'El servidor no está actualizado (falta desplegar la versión 2 del Apps Script)');
+    }
+    aplicarDatos(res.data);
   } catch(e) {
-    showToast('⚠️ Sin conexión — modo offline');
-    _historialCache = {};
-    _saldosCasasCache = {};
-    _reservaAcumuladaCache = 0;
+    showToast('⚠️ ' + (e.message || 'Sin conexión'));
+    aplicarDatos({ meses: [], abonos: [], config: {} });
   }
 }
 
-function jsonpGet(action) {
-  return new Promise((resolve, reject) => {
-    const cb = 'cb_' + Math.random().toString(36).slice(2);
-    const script = document.createElement('script');
-    let done = false;
-    window[cb] = (data) => {
-      done = true;
-      delete window[cb];
-      if (script.parentNode) script.parentNode.removeChild(script);
-      resolve(data);
-    };
-    script.onerror = () => {
-      done = true;
-      delete window[cb];
-      if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error('Error de red'));
-    };
-    script.src = SCRIPT_URL + '?action=' + action + '&callback=' + cb;
-    document.body.appendChild(script);
-    setTimeout(() => {
-      if (!done) { delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); reject(new Error('Timeout')); }
-    }, 12000);
-  });
-}
+// ——— COMUNICACIÓN CON EL SERVIDOR ———
+// Dentro de Apps Script se usa google.script.run. Si el mismo archivo se abre desde otro lugar
+// (por ejemplo GitHub Pages) se usa JSONP contra SCRIPT_URL.
+const EN_APPSCRIPT = typeof google !== 'undefined' && google.script && google.script.run;
+
+function jsonpGet(action) { return apiPost({ action }); }
 
 function initCasas() {
   const c = document.getElementById('casas-container');
@@ -359,43 +430,6 @@ function getFormData() {
 
 function parseNum(val) { return parseInt(val) || 0; }
 
-// ——— CÁLCULO PRINCIPAL ———
-function calcBalance(data, saldosCasasAnteriores, saldoOpAnterior) {
-  // Calcular estado de cada casa basado en saldo neto acumulado
-  const casasCalc = data.casas.map(c => {
-    const saldoAnterior = saldosCasasAnteriores[c.casa] || 0;
-    const diferencia = c.montoPagado - CUOTA_BASE; // positivo = pagó de más, negativo = debe
-    const saldoNuevo = saldoAnterior + diferencia;
-    const pagado = saldoNuevo >= 0;
-    const saldoPendiente = pagado ? 0 : Math.abs(saldoNuevo);
-    // De lo que efectivamente pagó esta casa: primero se cubre la parte operacional ($11.000),
-    // el resto (si alcanza) va a reserva. Si no pagó, no aporta a ninguna de las dos.
-    const aporteOperacional = Math.min(c.montoPagado, CUOTA_OPERACIONAL);
-    const aporteReserva = Math.max(0, c.montoPagado - CUOTA_OPERACIONAL);
-    return {
-      casa: c.casa,
-      montoPagado: c.montoPagado,
-      saldoAnterior,
-      saldoNuevo,
-      pagado,
-      saldoPendiente,
-      aporteReserva,
-      aporteOperacional
-    };
-  });
-
-  const ingresoTotal = data.casas.reduce((s, c) => s + c.montoPagado, 0);
-  const aporteReservaReal = casasCalc.reduce((s, c) => s + c.aporteReserva, 0);
-  const ingresoOperacionalReal = casasCalc.reduce((s, c) => s + c.aporteOperacional, 0);
-  const gastosOperacionales = data.gastos.filter(g => g.imputar === 'operacional').reduce((s, g) => s + g.monto, 0);
-  const gastosReserva = data.gastos.filter(g => g.imputar === 'reserva').reduce((s, g) => s + g.monto, 0);
-
-  const saldoOperacional = (saldoOpAnterior || 0) + ingresoOperacionalReal - gastosOperacionales;
-  const reservaNueva = data.reservaAnterior + aporteReservaReal - gastosReserva;
-
-  return { casasCalc, ingresoTotal, aporteReservaReal, ingresoOperacionalReal, gastosOperacionales, gastosReserva, saldoOperacional, reservaNueva };
-}
-
 const MESES_ORDEN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 // Devuelve el nombre del mes bien capitalizado sin importar cómo venga guardado
 // (ej: "septiembre", "SEPTIEMBRE" o "Septiembre" -> siempre "Septiembre")
@@ -446,76 +480,6 @@ function obtenerEstadoAnterior(currentKey, mes, anio) {
   };
 }
 
-// Recalcula TODO el historial en orden cronológico, de modo que cualquier cambio
-// (guardar, corregir o eliminar un mes) deje los totales siempre consistentes.
-async function recalcularTodosLosSaldos() {
-  const entradas = Object.keys(_historialCache)
-    .map(k => _historialCache[k])
-    .sort((a, b) => ordenMes(a.mes, a.anio) - ordenMes(b.mes, b.anio));
-
-  let saldosCasas = {};
-  let reservaAcumulada = 0;
-  let saldoOperacional = 0;
-  const actualizadas = [];
-  // Reconstruimos el historial completo desde cero con claves canónicas (siempre en minúscula).
-  // Si había entradas duplicadas por una clave vieja mal capitalizada, acá se fusionan en una sola.
-  const nuevoHistorial = {};
-  let primeraEntradaVista = false;
-
-  entradas.forEach((entry) => {
-    const claveEntry = claveCanonica(entry.mes, entry.anio);
-    if (nuevoHistorial[claveEntry]) return; // ya procesado este mes en esta misma pasada, se descarta el duplicado
-
-    const esPrimera = !primeraEntradaVista;
-    primeraEntradaVista = true;
-    // El primer mes del historial parte con la reserva inicial (0 en este condominio, que partió en Junio).
-    // Solo se respeta el valor ingresado a mano si es el ÚNICO mes registrado.
-    const reservaAnteriorUsar = esPrimera
-      ? (entradas.length === 1 ? (parseFloat(entry.reservaAnterior) || 0) : 0)
-      : reservaAcumulada;
-    const dataTmp = {
-      mes: normalizarMes(entry.mes), anio: entry.anio, venc: entry.venc,
-      casas: entry.casas, gastos: entry.gastos,
-      reservaAnterior: reservaAnteriorUsar, notas: entry.notas
-    };
-    const calc = calcBalance(dataTmp, saldosCasas, saldoOperacional);
-    const nuevaEntrada = {
-      ...entry,
-      mes: normalizarMes(entry.mes),
-      key: claveEntry,
-      casasCalc: calc.casasCalc,
-      ingresoTotal: calc.ingresoTotal,
-      aporteReservaReal: calc.aporteReservaReal,
-      ingresoOperacionalReal: calc.ingresoOperacionalReal,
-      gastosOperacionales: calc.gastosOperacionales,
-      gastosReserva: calc.gastosReserva,
-      saldoOperacional: calc.saldoOperacional,
-      reservaAnterior: reservaAnteriorUsar,
-      reservaNueva: calc.reservaNueva
-    };
-    nuevoHistorial[claveEntry] = nuevaEntrada;
-    actualizadas.push(nuevaEntrada);
-
-    saldosCasas = {};
-    calc.casasCalc.forEach(c => { saldosCasas[c.casa] = c.saldoNuevo; });
-    reservaAcumulada = calc.reservaNueva;
-    saldoOperacional = calc.saldoOperacional;
-  });
-
-  _historialCache = nuevoHistorial; // reemplaza todo — cualquier clave vieja/duplicada desaparece
-
-  // Persistir todos los meses recalculados + los saldos acumulados finales.
-  // Se hace en forma secuencial (no en paralelo) para evitar choques de escritura en Google Sheets.
-  for (const e of actualizadas) {
-    await apiPost({ action: 'save', key: e.key, payload: e });
-  }
-  await apiPost({ action: 'saveSaldos', payload: { saldosCasas, reservaAcumulada, saldoOperacional } });
-
-  _saldosCasasCache = saldosCasas;
-  _reservaAcumuladaCache = reservaAcumulada;
-  _saldoOperacionalCache = saldoOperacional;
-}
-
 // Actualiza el campo "saldo anterior" según el mes calendario elegido, tomándolo del historial real
 // Al abrir la app, deja el formulario listo para el mes SIGUIENTE al último guardado
 // (en vez de quedar siempre en Junio), para no aparecer editando un mes viejo por defecto.
@@ -543,9 +507,10 @@ function actualizarReservaPreview() {
     input.style.opacity = '0.65';
     nota.textContent = 'Calculado automáticamente desde el mes anterior en el historial.';
   } else {
-    input.readOnly = false;
-    input.style.opacity = '1';
-    nota.textContent = 'No hay mes anterior registrado — ingresa el saldo inicial manualmente (solo la primera vez).';
+    input.value = (_raw.config && _raw.config.reservaInicial) || 0;
+    input.readOnly = true;
+    input.style.opacity = '0.65';
+    nota.textContent = 'Primer mes del historial: parte con el saldo inicial (pestaña Config de la hoja).';
   }
   cargarMesExistente(key);
 }
@@ -605,23 +570,24 @@ function cargarMesExistente(key) {
 async function guardarMes() {
   const data = getFormData();
   if (!data.mes || !data.anio) return showToast('Completa mes y año');
-
   const key = claveCanonica(data.mes, data.anio);
-  data.mes = normalizarMes(data.mes); // guardamos siempre el nombre del mes bien capitalizado
-  const entradaCruda = { ...data, key, savedAt: new Date().toISOString() };
-  _historialCache[key] = entradaCruda;
 
-  showLoading(true, 'Guardando y recalculando...');
+  showLoading(true, 'Guardando...');
   try {
-    await recalcularTodosLosSaldos();
-    showToast('✓ Guardado — historial recalculado');
+    const res = await apiPost({ action: 'saveMes', mes: {
+      mes: normalizarMes(data.mes), anio: data.anio, venc: data.venc, notas: data.notas,
+      casas: data.casas, gastos: data.gastos
+    }});
+    if (!res || res.ok !== true) throw new Error(res && res.error ? res.error : 'El servidor no confirmó el guardado');
+    aplicarDatos(res.data);
+    showToast('✓ Mes guardado');
     actualizarReservaPreview();
     renderResumen(_historialCache[key]);
     renderEstado();
     renderHistorial();
     actualizarHeaderMes();
   } catch(e) {
-    showToast('❌ Error al guardar. Verifica conexión.');
+    showToast('❌ No se guardó: ' + (e.message || 'revisa la conexión'));
   }
   showLoading(false);
 }
@@ -724,6 +690,84 @@ function renderResumen(data) {
 }
 
 // ——— RENDER ESTADO ———
+// ——— MATRIZ DE PAGOS (casas × meses) ———
+// Cada mes se cubre primero con lo que la casa pagó ESE mes. Lo que sobra (pago de más o un pago
+// de deuda registrado) se aplica a los meses adeudados más antiguos. Así se distingue
+// "pagó en su mes", "pagó con atraso" y "sigue debiendo".
+function calcularMatrizPagos(hastaPeriodo) {
+  const entradas = Object.values(_historialCache)
+    .filter(e => !hastaPeriodo || e.periodo <= hastaPeriodo)
+    .sort((a, b) => a.periodo - b.periodo);
+  const filas = {};
+  CASAS.forEach(c => {
+    const celdas = [];
+    let credito = 0;                       // plata de más, sin deuda a la que aplicarla todavía
+    entradas.forEach((e, i) => {
+      const base = (e.casas.find(x => x.casa === c) || {}).montoPagado || 0;
+      const abono = (e.casasCalc.find(x => x.casa === c) || {}).abonoDeuda || 0;
+      const propio = Math.min(base, CUOTA_BASE);
+      let falta = CUOTA_BASE - propio;
+      const usado = Math.min(credito, falta); credito -= usado; falta -= usado;
+      const cel = { base, abono, propio, faltaInicial: CUOTA_BASE - propio, falta };
+      celdas.push(cel);
+      // sobrante de este mes -> deudas más antiguas primero (incluida la de este mismo mes)
+      let sobra = (base - propio) + abono;
+      for (let j = 0; j <= i && sobra > 0; j++) {
+        const t = Math.min(sobra, celdas[j].falta);
+        celdas[j].falta -= t; sobra -= t;
+      }
+      credito += sobra;
+    });
+    filas[c] = celdas.map(x => {
+      let estado;
+      if (x.faltaInicial === 0 || (x.propio >= CUOTA_BASE)) estado = 'ok';
+      else if (x.falta === 0) estado = 'tarde';
+      else estado = (x.propio > 0 || x.falta < CUOTA_BASE) ? 'parcial' : 'deuda';
+      return { monto: x.base, abono: x.abono, estado, pendiente: x.falta,
+               cubiertoPorCredito: x.propio < CUOTA_BASE && x.faltaInicial > 0 && x.falta === 0 && estado === 'ok' };
+    });
+  });
+  return { entradas, filas };
+}
+
+const MES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function renderMatrizPagos() {
+  const { entradas, filas } = calcularMatrizPagos();
+  if (!entradas.length) return `<div class="empty-state"><span class="emoji">📋</span>Aún no hay meses registrados</div>`;
+
+  const alertaMes = entradas.map((_, i) => CASAS.some(c => ['deuda', 'parcial'].includes(filas[c][i].estado)));
+  let h = `<div class="matriz-wrap" id="matriz-wrap"><table class="matriz"><thead><tr><th class="col-casa"></th>`;
+  entradas.forEach((e, i) => {
+    h += `<th class="${alertaMes[i] ? 'alerta' : ''}">${MES_CORTO[MESES_ORDEN.indexOf(e.mes)] || e.mes}<span class="anio">${e.anio}</span></th>`;
+  });
+  h += `<th class="col-saldo">Saldo</th></tr></thead><tbody>`;
+
+  CASAS.forEach(c => {
+    h += `<tr><th class="col-casa" scope="row">Casa ${c}</th>`;
+    filas[c].forEach(x => {
+      let linea2 = '';
+      if (x.estado === 'ok') linea2 = '✓ Pagado';
+      if (x.estado === 'tarde') linea2 = '↻ Pagó después';
+      if (x.estado === 'parcial') linea2 = `⚠ Debe $${fmt(x.pendiente)}`;
+      if (x.estado === 'deuda') linea2 = `✕ Debe $${fmt(x.pendiente)}`;
+      const extra = x.abono ? `<small class="abono">+$${fmt(x.abono)} pago deuda</small>` : '';
+      h += `<td class="celda"><div class="c ${x.estado}"><b>$${fmt(x.monto)}</b><small>${linea2}</small>${extra}</div></td>`;
+    });
+    const saldo = _saldosCasasCache[c] || 0;
+    h += `<td class="celda col-saldo"><div class="s ${saldo < 0 ? 'deuda' : 'ok'}">${
+      saldo < 0 ? 'Debe $' + fmt(-saldo) : (saldo > 0 ? 'Al día ✓<br>+$' + fmt(saldo) : 'Al día ✓')}</div></td></tr>`;
+  });
+
+  h += `</tbody><tfoot><tr><td class="col-casa">Cobrado</td>`;
+  entradas.forEach(e => { h += `<td>$${fmt(e.ingresoTotal)}</td>`; });
+  h += `<td></td></tr></tfoot></table></div>
+    <div class="matriz-leyenda">
+      <span class="l-ok">Pagado en su mes</span><span class="l-tarde">Pagó con atraso</span>
+      <span class="l-parcial">Pago parcial</span><span class="l-deuda">Sin pagar</span>
+    </div>`;
+  return h;
+}
+
 function renderEstado() {
   const pendienteCount = CASAS.filter(c => (_saldosCasasCache[c] || 0) < 0).length;
   const estadoTab = document.querySelectorAll('.tab-btn')[2];
@@ -746,16 +790,8 @@ function renderEstado() {
       </div>
     </div>
     <div class="card">
-      <div class="card-title"><span class="icon">🏠</span> Saldo neto por casa</div>`;
-
-  CASAS.forEach(c => {
-    const saldo = _saldosCasasCache[c] || 0;
-    const alDia = saldo >= 0;
-    const tag = alDia
-      ? `<span class="deuda-tag tag-ok">Al día ✓${saldo > 0 ? ' (+$'+fmt(saldo)+')' : ''}</span>`
-      : `<span class="deuda-tag tag-deuda">Debe $${fmt(Math.abs(saldo))}</span>`;
-    html += `<div class="estado-casa"><span class="nombre">Casa ${c}</span>${tag}</div>`;
-  });
+      <div class="card-title"><span class="icon">🏠</span> Pagos por casa y mes</div>
+      ${renderMatrizPagos()}`;
 
   html += `</div>
     <div class="card">
@@ -774,52 +810,57 @@ function renderEstado() {
       <button class="btn btn-secondary" onclick="saldarDeuda()">Registrar pago</button>
     </div>`;
 
+  if (_raw.abonos.length) {
+    html += `<div class="card"><div class="card-title"><span class="icon">🧾</span> Pagos de deuda registrados</div>`;
+    _raw.abonos.slice().reverse().forEach(a => {
+      const m = _raw.meses.find(x => x.periodo === a.periodo);
+      html += `<div class="estado-casa"><span class="nombre">Casa ${a.casa} · $${fmt(a.monto)}<br><small style="color:var(--ink-soft)">${a.fecha || ''}${m ? ' · en ' + m.mes + ' ' + m.anio : ''}</small></span>
+        <button class="btn btn-secondary" style="width:auto;padding:6px 10px;margin:0" onclick="borrarAbono('${a.id}')">🗑</button></div>`;
+    });
+    html += `</div>`;
+  }
+
   document.getElementById('estado-content').innerHTML = html;
+  const mw = document.getElementById('matriz-wrap');
+  if (mw) mw.scrollLeft = mw.scrollWidth; // deja a la vista los meses más recientes
 }
 
 async function saldarDeuda() {
   const casa = document.getElementById('deuda-casa').value;
   const monto = parseNum(document.getElementById('deuda-monto').value);
-  if (!monto) return showToast('Ingresa un monto');
-
-  // El pago actualiza la deuda de la casa...
-  _saldosCasasCache[casa] = (_saldosCasasCache[casa] || 0) + monto;
-
-  // ...y también es plata real que entra: se reparte con la misma prioridad que un pago mensual
-  // (primero cubre operacional hasta $11.000, el resto va a reserva).
-  const aporteOperacional = Math.min(monto, CUOTA_OPERACIONAL);
-  const aporteReserva = Math.max(0, monto - CUOTA_OPERACIONAL);
-  _saldoOperacionalCache += aporteOperacional;
-  _reservaAcumuladaCache += aporteReserva;
+  if (!monto || monto <= 0) return showToast('Ingresa un monto');
+  const ultimo = getUltimoMes();
+  if (!ultimo) return showToast('Primero guarda al menos un mes');
 
   showLoading(true, 'Guardando...');
   try {
-    await apiPost({ action: 'saveSaldos', payload: { saldosCasas: _saldosCasasCache, reservaAcumulada: _reservaAcumuladaCache, saldoOperacional: _saldoOperacionalCache } });
-
-    // Actualizamos también los totales del último mes guardado, para que Estado y el
-    // encabezado del Resumen queden consistentes con el pago recién registrado.
-    const ultimo = getUltimoMes();
-    if (ultimo) {
-      const entradaActualizada = {
-        ...ultimo,
-        reservaNueva: _reservaAcumuladaCache,
-        saldoOperacional: _saldoOperacionalCache
-      };
-      await apiPost({ action: 'save', key: ultimo.key, payload: entradaActualizada });
-      _historialCache[ultimo.key] = entradaActualizada;
-    }
-
+    const res = await apiPost({ action: 'addAbono', abono: { periodo: ultimo.periodo, casa, monto, fecha: new Date().toISOString().slice(0, 10) } });
+    if (!res || res.ok !== true) throw new Error(res && res.error ? res.error : 'El servidor no confirmó el pago');
+    aplicarDatos(res.data);
     renderEstado();
     renderResumen(getUltimoMes());
     renderHistorial();
-    showToast(`✓ Pago de Casa ${casa} registrado (+$${fmt(aporteOperacional)} operacional, +$${fmt(aporteReserva)} reserva)`);
-  } catch(e) { showToast('❌ Error al guardar'); }
+    actualizarHeaderMes();
+    showToast(`✓ Pago de Casa ${casa} registrado: $${fmt(monto)}`);
+  } catch(e) { showToast('❌ No se guardó: ' + (e.message || 'revisa la conexión')); }
+  showLoading(false);
+}
+
+async function borrarAbono(id) {
+  if (!confirm('¿Eliminar este pago de deuda?')) return;
+  showLoading(true, 'Eliminando...');
+  try {
+    const res = await apiPost({ action: 'deleteAbono', id });
+    if (!res || res.ok !== true) throw new Error(res && res.error ? res.error : 'El servidor no confirmó');
+    aplicarDatos(res.data);
+    renderEstado(); renderHistorial(); actualizarHeaderMes();
+    showToast('✓ Pago eliminado');
+  } catch(e) { showToast('❌ No se eliminó: ' + (e.message || 'revisa la conexión')); }
   showLoading(false);
 }
 
 // ——— RENDER HISTORIAL ———
 function renderHistorial() {
-  _historialCache = deduplicarHistorial(_historialCache);
   const keys = Object.keys(_historialCache)
     .sort((a, b) => ordenMes(_historialCache[b].mes, _historialCache[b].anio) - ordenMes(_historialCache[a].mes, _historialCache[a].anio));
   if (keys.length === 0) {
@@ -877,20 +918,23 @@ function editarMes(key) {
 }
 
 async function eliminarMes(key) {
-  if (!confirm('¿Eliminar este mes del historial?')) return;
+  const entry = _historialCache[key];
+  if (!entry) return showToast('❌ No se encontró ese mes');
+  const nAbonos = _raw.abonos.filter(a => a.periodo === entry.periodo).length;
+  const aviso = nAbonos ? `\n\nAtención: también se eliminarán ${nAbonos} pago(s) de deuda registrados en este mes.` : '';
+  if (!confirm(`¿Eliminar ${entry.mes} ${entry.anio} del historial?${aviso}`)) return;
   showLoading(true, 'Eliminando...');
   try {
-    const res = await apiPost({ action: 'delete', key });
-    if (!res || res.ok !== true) throw new Error('El servidor no confirmó la eliminación');
-    delete _historialCache[key];
-    await recalcularTodosLosSaldos();
+    const res = await apiPost({ action: 'deleteMes', periodo: entry.periodo });
+    if (!res || res.ok !== true) throw new Error(res && res.error ? res.error : 'El servidor no confirmó la eliminación');
+    aplicarDatos(res.data);
     renderHistorial();
     renderEstado();
     actualizarReservaPreview();
     actualizarHeaderMes();
     showToast('✓ Mes eliminado y saldos recalculados');
   } catch(e) {
-    showToast('❌ No se pudo eliminar. Revisa el Apps Script y la conexión.');
+    showToast('❌ No se pudo eliminar: ' + (e.message || 'revisa la conexión'));
   }
   showLoading(false);
 }
@@ -908,6 +952,7 @@ function generarPDFDato(data) {
   const W = 210, mg = 18;
   let y = 20;
   const fmtN = v => '$' + fmt(v);
+  const asegurarEspacio = (alto) => { if (y + alto > 278) { doc.addPage(); y = 20; } };
 
   // Normalizar valores para evitar NaN en jsPDF
   const nv = v => parseFloat(v) || 0;
@@ -995,8 +1040,8 @@ function generarPDFDato(data) {
     doc.text(`Casa ${c.casa}`, cols[0]+2, y+5.5);
     doc.setFont('helvetica', 'normal');
     doc.text(fmtN(c.montoPagado), cols[1]+2, y+5.5);
-    if (c.pagado) { doc.setTextColor(45,90,39); doc.setFont('helvetica','bold'); doc.text('Pagado ✓', cols[2]+2, y+5.5); }
-    else { doc.setTextColor(139,46,46); doc.setFont('helvetica','bold'); doc.text('Pendiente ✗', cols[2]+2, y+5.5); }
+    if (c.pagado) { doc.setTextColor(45,90,39); doc.setFont('helvetica','bold'); doc.text('Pagado', cols[2]+2, y+5.5); }
+    else { doc.setTextColor(139,46,46); doc.setFont('helvetica','bold'); doc.text('Pendiente', cols[2]+2, y+5.5); }
     doc.setTextColor(c.saldoPendiente===0 ? 45 : 139, c.saldoPendiente===0 ? 90 : 46, c.saldoPendiente===0 ? 39 : 46);
     doc.setFont('helvetica','bold');
     doc.text(fmtN(c.saldoPendiente), cols[3]+2, y+5.5);
@@ -1005,8 +1050,105 @@ function generarPDFDato(data) {
   });
   y += 5;
 
+  // Estado de pagos por casa y mes (hasta el mes de este informe)
+  const mat = calcularMatrizPagos(data.periodo);
+  if (mat.entradas.length > 0) {
+    const MAX_MESES = 12;
+    const ents = mat.entradas.slice(-MAX_MESES);
+    const off = mat.entradas.length - ents.length;
+    const nM = ents.length;
+    const wCasa = 17;
+    const wM = Math.min(22, (W - mg*2 - wCasa - 25) / nM);
+    const wSaldo = W - mg*2 - wCasa - nM*wM;   // la columna Saldo ocupa lo que sobra
+    const tablaW = wCasa + nM*wM + wSaldo;
+    const rowH = 11;
+    asegurarEspacio(18 + rowH*CASAS.length + 30);
+
+    doc.setDrawColor(221,216,204); doc.line(mg, y, W-mg, y); y += 7;
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(28,26,22);
+    doc.text('ESTADO DE PAGOS POR CASA Y MES', mg, y); y += 5;
+
+    const EST = {
+      ok:      { fill:[232,240,230], txt:[45,90,39],   lbl:'PAGADO' },
+      tarde:   { fill:[253,246,227], txt:[160,131,42], lbl:'CON ATRASO' },
+      parcial: { fill:[253,235,213], txt:[154,90,18],  lbl:null },
+      deuda:   { fill:[245,232,232], txt:[139,46,46],  lbl:null }
+    };
+    const ajustar = (txt, maxW, size) => { doc.setFontSize(size); while (size > 3.5 && doc.getTextWidth(txt) > maxW) { size -= 0.3; doc.setFontSize(size); } };
+
+    // Encabezado (los meses con deuda pendiente van en rojo)
+    doc.setFillColor(60,60,55); doc.rect(mg, y, wCasa, 7, 'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7);
+    doc.text('Casa', mg+2, y+4.6);
+    ents.forEach((e, j) => {
+      const alerta = CASAS.some(c => ['deuda','parcial'].includes(mat.filas[c][off+j].estado));
+      doc.setFillColor(...(alerta ? [139,46,46] : [60,60,55]));
+      doc.rect(mg + wCasa + j*wM, y, wM, 7, 'F');
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
+      doc.text(`${MES_CORTO[MESES_ORDEN.indexOf(e.mes)] || e.mes} ${String(e.anio).slice(-2)}`, mg + wCasa + j*wM + wM/2, y+4.6, {align:'center'});
+    });
+    doc.setFillColor(60,60,55); doc.rect(mg + wCasa + nM*wM, y, wSaldo, 7, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(7);
+    doc.text('Saldo', mg + wCasa + nM*wM + wSaldo/2, y+4.6, {align:'center'});
+    y += 7;
+
+    const ultimaEntrada = mat.entradas[mat.entradas.length - 1];
+    CASAS.forEach(c => {
+      doc.setFillColor(245,242,235); doc.rect(mg, y, wCasa, rowH, 'F');
+      doc.setTextColor(28,26,22); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+      doc.text(`Casa ${c}`, mg+2, y+rowH/2+1.2);
+      ents.forEach((e, j) => {
+        const x = mg + wCasa + j*wM, cel = mat.filas[c][off+j], st = EST[cel.estado];
+        doc.setFillColor(...st.fill); doc.rect(x+0.3, y+0.3, wM-0.6, rowH-0.6, 'F');
+        doc.setTextColor(...st.txt);
+        doc.setFont('helvetica','bold'); ajustar(fmtN(cel.monto), wM-1.2, 7);
+        doc.text(fmtN(cel.monto), x+wM/2, y+4.2, {align:'center'});
+        const lbl = st.lbl || `DEBE ${fmtN(cel.pendiente)}`;
+        ajustar(lbl, wM-1.2, 5);
+        doc.text(lbl, x+wM/2, y+7.1, {align:'center'});
+        if (cel.abono) {
+          doc.setFont('helvetica','normal');
+          const ex = `+${fmtN(cel.abono)} deuda`;
+          ajustar(ex, wM-1.2, 4.6);
+          doc.text(ex, x+wM/2, y+9.6, {align:'center'});
+        }
+      });
+      const cc = (ultimaEntrada.casasCalc.find(z => z.casa === c) || {});
+      const sx = mg + wCasa + nM*wM, saldo = cc.saldoNuevo || 0;
+      doc.setFillColor(...(saldo < 0 ? [139,46,46] : [232,240,230])); doc.rect(sx+0.3, y+0.3, wSaldo-0.6, rowH-0.6, 'F');
+      doc.setTextColor(...(saldo < 0 ? [255,255,255] : [45,90,39])); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+      doc.text(saldo < 0 ? `Debe ${fmtN(-saldo)}` : 'Al día', sx+wSaldo/2, y+rowH/2+(saldo > 0 ? -0.4 : 1.2), {align:'center'});
+      if (saldo > 0) { doc.setFontSize(6); doc.text(`+${fmtN(saldo)}`, sx+wSaldo/2, y+rowH/2+3, {align:'center'}); }
+      y += rowH;
+    });
+
+    // Fila de totales cobrados
+    doc.setTextColor(100,96,88); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
+    doc.text('Cobrado', mg+2, y+4.5);
+    ents.forEach((e, j) => {
+      ajustar(fmtN(e.ingresoTotal), wM-1, 6.5);
+      doc.text(fmtN(e.ingresoTotal), mg + wCasa + j*wM + wM/2, y+4.5, {align:'center'});
+    });
+    doc.setDrawColor(221,216,204); doc.line(mg, y, mg+tablaW, y);
+    y += 8;
+
+    // Leyenda
+    let lx = mg;
+    [['ok','Pagado en su mes'],['tarde','Pagó con atraso'],['parcial','Pago parcial'],['deuda','Sin pagar']].forEach(([k, t]) => {
+      doc.setFillColor(...EST[k].fill); doc.setDrawColor(...EST[k].txt);
+      doc.rect(lx, y-2.6, 3.5, 3.5, 'FD');
+      doc.setTextColor(100,96,88); doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
+      doc.text(t, lx+5, y+0.1);
+      lx += 5 + doc.getTextWidth(t) + 6;
+    });
+    if (off > 0) { doc.text(`Se muestran los últimos ${MAX_MESES} meses.`, W-mg, y+0.1, {align:'right'}); }
+    doc.setTextColor(28,26,22);
+    y += 9;
+  }
+
   // Gastos
   if (data.gastos && data.gastos.length > 0) {
+    asegurarEspacio(20 + data.gastos.length * 5.5);
     doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y += 7;
     doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('GASTOS DEL PERÍODO', mg, y); y += 5;
     const oper = data.gastos.filter(g=>g.imputar==='operacional');
@@ -1034,19 +1176,21 @@ function generarPDFDato(data) {
   }
 
   // Detalle fondo reserva
+  asegurarEspacio(34);
   doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y += 7;
   doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('FONDO DE RESERVA', mg, y); y += 5;
   const alturaReserva = data.gastosReserva>0 ? 22 : 16; doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,alturaReserva,'F');
   doc.setFontSize(8.5); doc.setFont('helvetica','normal');
   doc.text(`Saldo anterior: ${fmtN(data.reservaAnterior)}`, mg+3, y+5);
   doc.text(`+ Aporte mensual: ${fmtN(data.aporteReservaReal != null ? data.aporteReservaReal : APORTE_RESERVA)}`, mg+3, y+11);
-  if (data.gastosReserva > 0) { doc.setTextColor(139,46,46); doc.text(`− Gastos imputados: ${fmtN(data.gastosReserva)}`, mg+3, y+17); doc.setTextColor(28,26,22); }
+  if (data.gastosReserva > 0) { doc.setTextColor(139,46,46); doc.text(`- Gastos imputados: ${fmtN(data.gastosReserva)}`, mg+3, y+17); doc.setTextColor(28,26,22); }
   doc.setFont('helvetica','bold'); doc.setFontSize(10);
   doc.text(`= ${fmtN(data.reservaNueva)}`, W-mg-3, y+(data.gastosReserva>0?17:11), {align:'right'});
   y += data.gastosReserva>0 ? 26 : 20;
 
   // Notas
   if (data.notas) {
+    asegurarEspacio(Math.min(60, doc.splitTextToSize(String(data.notas), W-mg*2-4).length * 5 + 18));
     doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y+=7;
     doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('AVISOS Y NOTAS', mg, y); y+=5;
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
@@ -1056,37 +1200,36 @@ function generarPDFDato(data) {
   }
 
   // Footer
-  doc.setFontSize(7.5); doc.setTextColor(160,155,145);
-  doc.text(`Generado el ${new Date().toLocaleDateString('es-CL')} · Condominio`, W/2, 287, {align:'center'});
+  const nPag = doc.getNumberOfPages();
+  for (let i = 1; i <= nPag; i++) {
+    doc.setPage(i);
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(160,155,145);
+    doc.text(`Generado el ${new Date().toLocaleDateString('es-CL')} · Condominio${nPag > 1 ? ` · Página ${i} de ${nPag}` : ''}`, W/2, 290, {align:'center'});
+  }
   doc.save(`GastosComunes_${data.mes}${data.anio}.pdf`);
   showToast('✓ PDF descargado');
 }
 
 // ——— API ———
-async function apiPost(body) {
+function apiPost(body) {
+  if (EN_APPSCRIPT) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(err => reject(new Error((err && err.message) || String(err))))
+        .api(JSON.stringify(body));
+    });
+  }
   return new Promise((resolve, reject) => {
     const cb = 'cb_' + Math.random().toString(36).slice(2);
     const script = document.createElement('script');
     let done = false;
-    window[cb] = (data) => {
-      done = true;
-      delete window[cb];
-      if (script.parentNode) script.parentNode.removeChild(script);
-      resolve(data);
-    };
-    script.onerror = () => {
-      done = true;
-      delete window[cb];
-      if (script.parentNode) script.parentNode.removeChild(script);
-      reject(new Error('Error de red'));
-    };
-    // Para POST usamos GET con parámetro data (Apps Script lo lee desde e.parameter)
-    const encoded = encodeURIComponent(JSON.stringify(body));
-    script.src = SCRIPT_URL + '?callback=' + cb + '&postdata=' + encoded;
+    const limpiar = () => { done = true; delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); };
+    window[cb] = (data) => { limpiar(); resolve(data); };
+    script.onerror = () => { limpiar(); reject(new Error('Error de red')); };
+    script.src = SCRIPT_URL + '?callback=' + cb + '&postdata=' + encodeURIComponent(JSON.stringify(body));
     document.body.appendChild(script);
-    setTimeout(() => {
-      if (!done) { delete window[cb]; if (script.parentNode) script.parentNode.removeChild(script); reject(new Error('Timeout')); }
-    }, 12000);
+    setTimeout(() => { if (!done) { limpiar(); reject(new Error('Timeout')); } }, 15000);
   });
 }
 
