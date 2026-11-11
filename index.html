@@ -686,7 +686,8 @@ function renderResumen(data) {
       <p style="font-size:12px;font-weight:700;color:var(--danger)">⏰ Vencimiento: ${data.venc}</p></div>`;
   }
 
-  html += `<button class="btn btn-pdf" onclick="generarPDF()">📄 Descargar PDF</button>`;
+  html += `<button class="btn btn-pdf" onclick="generarPDF()">📄 Descargar PDF</button>
+    <button class="btn btn-secondary" onclick="compartirPDF()">📤 Compartir (WhatsApp, correo…)</button>`;
 
   document.getElementById('resumen-content').innerHTML = html;
 }
@@ -751,11 +752,11 @@ function renderMatrizPagos() {
     filas[c].forEach(x => {
       let linea2 = '';
       if (x.estado === 'ok') linea2 = '✓ Pagado';
-      if (x.estado === 'tarde') linea2 = '↻ Pagó con atraso';
-      if (x.estado === 'parcial') linea2 = `⚠ Debe $${fmt(x.pendiente)}`;
-      if (x.estado === 'deuda') linea2 = `✕ Debe $${fmt(x.pendiente)}`;
+      if (x.estado === 'tarde') linea2 = '↻ Pagado con atraso';
+      if (x.estado === 'parcial') linea2 = '⚠ Pago parcial';
+      if (x.estado === 'deuda') linea2 = '✕ Sin pagar';
       const extra = x.abono ? `<small class="abono">+$${fmt(x.abono)} pago deuda</small>` : '';
-      const click = x.marcable ? ` onclick="alternarAtraso(${x.periodo},'${c}')" title="Tocar para marcar o quitar 'pagó con atraso'"` : '';
+      const click = x.marcable ? ` onclick="alternarAtraso(${x.periodo},'${c}')" title="Tocar para marcar o quitar 'pagado con atraso'"` : '';
       h += `<td class="celda"><div class="c ${x.estado}${x.marcable ? ' tocable' : ''}"${click}><b>$${fmt(x.monto)}</b><small>${linea2}</small>${extra}</div></td>`;
     });
     const saldo = _saldosCasasCache[c] || 0;
@@ -767,10 +768,10 @@ function renderMatrizPagos() {
   entradas.forEach(e => { h += `<td>$${fmt(e.ingresoTotal)}</td>`; });
   h += `<td></td></tr></tfoot></table></div>
     <div class="matriz-leyenda">
-      <span class="l-ok">Pagado en su mes</span><span class="l-tarde">Pagó con atraso</span>
+      <span class="l-ok">Pagado en la fecha</span><span class="l-tarde">Pagado con atraso</span>
       <span class="l-parcial">Pago parcial</span><span class="l-deuda">Sin pagar</span>
     </div>
-    <p style="font-size:10.5px;color:var(--ink-soft);margin-top:8px">Toca un casillero pagado para marcarlo como <b>pagó con atraso</b> (solo cambia la etiqueta, no los montos). Tócalo de nuevo para quitar la marca.</p>`;
+    <p style="font-size:10.5px;color:var(--ink-soft);margin-top:8px">Toca un casillero pagado para marcarlo como <b>pagado con atraso</b> (solo cambia la etiqueta, no los montos). Tócalo de nuevo para quitar la marca.</p>`;
   return h;
 }
 
@@ -857,8 +858,8 @@ async function alternarAtraso(periodo, casa) {
   if (!e) return;
   const ya = (_raw.atrasos || []).some(a => a.periodo === periodo && a.casa === casa);
   const msg = ya
-    ? `¿Quitar la marca "pagó con atraso" de la Casa ${casa} en ${e.mes} ${e.anio}?`
-    : `¿Marcar la Casa ${casa} en ${e.mes} ${e.anio} como "pagó con atraso"?\n\nSolo cambia la etiqueta, no los montos ni los saldos.`;
+    ? `¿Quitar la marca "pagado con atraso" de la Casa ${casa} en ${e.mes} ${e.anio}?`
+    : `¿Marcar la Casa ${casa} en ${e.mes} ${e.anio} como "pagado con atraso"?\n\nSolo cambia la etiqueta, no los montos ni los saldos.`;
   if (!confirm(msg)) return;
   showLoading(true, 'Guardando...');
   try {
@@ -866,7 +867,7 @@ async function alternarAtraso(periodo, casa) {
     if (!res || res.ok !== true || !res.data) throw new Error(res && res.error ? res.error : 'El servidor no confirmó (¿falta actualizar el Apps Script?)');
     aplicarDatos(res.data);
     renderEstado();
-    showToast(ya ? '✓ Marca quitada' : '✓ Marcado como pagó con atraso');
+    showToast(ya ? '✓ Marca quitada' : '✓ Marcado como pagado con atraso');
   } catch(e2) { showToast('❌ No se guardó: ' + (e2.message || 'revisa la conexión')); }
   showLoading(false);
 }
@@ -913,6 +914,7 @@ function renderHistorial() {
           ${d.notas ? `<hr class="divider"><p style="font-size:11px">${d.notas}</p>` : ''}
           <button class="btn btn-secondary" style="margin-top:9px;padding:9px" onclick="event.stopPropagation();editarMes('${k}')">✏️ Editar mes</button>
           <button class="btn btn-pdf" style="margin-top:5px;padding:9px" onclick="event.stopPropagation();generarPDFDato(${escJson(d)})">📄 PDF este mes</button>
+          <button class="btn btn-secondary" style="margin-top:5px;padding:9px" onclick="event.stopPropagation();generarPDFDato(${escJson(d)}, 'compartir')">📤 Compartir este mes</button>
           <button class="btn btn-secondary" style="margin-top:5px;padding:9px" onclick="event.stopPropagation();eliminarMes('${k}')">🗑 Eliminar mes</button>
         </div>
       </div>`;
@@ -970,269 +972,272 @@ function generarPDF() {
   if (!ultimo) return showToast('Guarda el mes primero');
   generarPDFDato(ultimo);
 }
+function compartirPDF() {
+  const ultimo = getUltimoMes();
+  if (!ultimo) return showToast('Guarda el mes primero');
+  generarPDFDato(ultimo, 'compartir');
+}
+function generarPDFDato(data, accion) { return construirPDF(data, accion || 'descargar'); }
 
-function generarPDFDato(data) {
+// Datos para depositar: se leen de la pestaña Config de la hoja (con respaldo por si no están)
+function datosPago() {
+  const base = { titular: 'Sara Ovalle Valdés', rut: '16.208.717-7', banco: 'Banco BICE', cuenta: 'Cuenta Corriente N° 14-74071-6', correo: 'sovalle1@gmail.com' };
+  const p = (_raw.config && _raw.config.pago) || {};
+  Object.keys(base).forEach(k => { if (p[k]) base[k] = p[k]; });
+  return base;
+}
+
+// Construye el PDF del mes. accion: 'descargar' | 'compartir'
+async function construirPDF(data, accion) {
+  const vecinos = false;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210, mg = 18;
-  let y = 20;
+  const W = 210, mg = 15, CW = W - mg * 2;
+  let y = 0;
   const fmtN = v => '$' + fmt(v);
-  const asegurarEspacio = (alto) => { if (y + alto > 278) { doc.addPage(); y = 20; } };
+  // Un color = un significado
+  //  Estado de pago: verde = pagado · azul = pagó con atraso · ocre = pago parcial · rojo = sin pagar
+  //  Fondos: pizarra = operacional · ciruela = reserva · neutro = el resto
+  const C = {
+    ink: [28,26,22], soft: [100,96,88], line: [221,216,204], paper: [246,244,239], white: [255,255,255],
+    okF: [226,238,230],  okT: [38,102,72],
+    lateF: [224,234,246], lateT: [32,84,138],
+    parF: [248,236,206],  parT: [133,92,0],
+    redF: [248,225,225],  redT: [155,35,35],
+    opT: [62,76,89],      resT: [102,74,122]
+  };
+  const asegurar = h => { if (y + h > 282) { doc.addPage(); y = 18; } };
+  const ajustar = (txt, maxW, size) => { doc.setFontSize(size); while (size > 3.5 && doc.getTextWidth(txt) > maxW) { size -= 0.3; doc.setFontSize(size); } };
+  const txt = (t, x, yy, o) => doc.text(String(t), x, yy, o);
 
-  // Normalizar valores para evitar NaN en jsPDF
-  const nv = v => parseFloat(v) || 0;
-  data.ingresoTotal = nv(data.ingresoTotal);
-  data.gastosOperacionales = nv(data.gastosOperacionales);
-  data.gastosReserva = nv(data.gastosReserva);
-  data.saldoOperacional = nv(data.saldoOperacional);
-  data.reservaNueva = nv(data.reservaNueva);
-  data.reservaAnterior = nv(data.reservaAnterior);
-  data.aporteReservaReal = data.aporteReservaReal != null ? nv(data.aporteReservaReal) : APORTE_RESERVA;
-  data.casasCalc = (data.casasCalc || []).map(c => ({
-    ...c, montoPagado: nv(c.montoPagado), saldoPendiente: nv(c.saldoPendiente)
-  }));
-  data.gastos = (data.gastos || []).map(g => ({ ...g, monto: nv(g.monto) }));
+  // ——— Encabezado ———
+  doc.setFillColor(...C.ink); doc.rect(0, 0, W, 24, 'F');
+  doc.setTextColor(245,242,235); doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  txt('CONDOMINIO', mg, 11);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  txt(`Gastos comunes · ${data.mes} ${data.anio}`, mg, 18.5);
+  doc.setFontSize(8);
+  if (data.venc) txt(`Vencimiento: ${data.venc}`, W - mg, 11, { align: 'right' });
+  y = 28;
 
-  console.log('PDF data:', JSON.stringify({
-    ingresoTotal: data.ingresoTotal,
-    gastosOperacionales: data.gastosOperacionales,
-    gastosReserva: data.gastosReserva,
-    saldoOperacional: data.saldoOperacional,
-    reservaNueva: data.reservaNueva,
-    reservaAnterior: data.reservaAnterior,
-    casasCalc: data.casasCalc
-  }));
+  // ——— 1. Avisos y notas (arriba) ———
+  if (data.notas) {
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    const lines = doc.splitTextToSize(String(data.notas), CW - 10);
+    const h = lines.length * 4.1 + 8.6;
+    asegurar(h + 4);
+    doc.setFillColor(...C.paper); doc.rect(mg, y, CW, h, 'F');
+    doc.setFillColor(...C.ink); doc.rect(mg, y, 1.3, h, 'F');
+    doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(7);
+    txt('AVISOS Y NOTAS', mg + 5, y + 4.8);
+    doc.setTextColor(...C.ink); doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+    doc.text(lines, mg + 5, y + 9.6);
+    y += h + 4;
+  }
 
-  // Header
-  doc.setFillColor(28, 26, 22);
-  doc.rect(0, 0, W, 28, 'F');
-  doc.setTextColor(245, 242, 235);
-  doc.setFontSize(17); doc.setFont('helvetica', 'bold');
-  doc.text('CONDOMINIO', mg, 12);
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.text(`Gastos Comunes · ${data.mes} ${data.anio}`, mg, 21);
-  if (data.venc) { doc.setFontSize(8); doc.text(`Vencimiento: ${data.venc}`, W - mg, 21, { align: 'right' }); }
-  y = 36;
-  doc.setTextColor(28, 26, 22);
-
-  // Balance boxes
-  const boxes = [
-    { label: 'INGRESOS', val: fmtN(data.ingresoTotal), col: [232,240,230] },
-    { label: 'GASTOS OPER.', val: fmtN(data.gastosOperacionales), col: [245,242,235] },
-    { label: 'SALDO OPERACIONAL', val: (data.saldoOperacional>=0?'+':'') + fmtN(data.saldoOperacional), col: data.saldoOperacional>=0?[232,240,230]:[245,232,232] },
-    { label: 'FONDO RESERVA', val: (data.reservaNueva >= 0 ? '+' : '') + fmtN(data.reservaNueva), col: [253,246,227] },
+  // ——— KPIs ———
+  const kp = [
+    { l: 'INGRESOS', v: fmtN(data.ingresoTotal), c: C.soft },
+    { l: 'GASTOS OPERACIONALES', v: fmtN(data.gastosOperacionales), c: C.opT },
+    { l: 'SALDO OPERACIONAL', v: (data.saldoOperacional >= 0 ? '+' : '') + fmtN(data.saldoOperacional), c: data.saldoOperacional >= 0 ? C.opT : C.redT },
+    { l: 'FONDO DE RESERVA', v: '+' + fmtN(data.reservaNueva), c: C.resT }
   ];
-  const bw = (W - mg*2 - 8) / 2;
-  boxes.forEach((b, i) => {
-    const bx = mg + (i%2)*(bw+8);
-    const by = y + Math.floor(i/2)*18;
-    doc.setFillColor(...b.col);
-    doc.rect(bx, by, bw, 14, 'F');
-    doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-    doc.text(b.val, bx+bw/2, by+7, {align:'center'});
-    doc.setFontSize(6.5); doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100,96,88);
-    doc.text(b.label, bx+bw/2, by+11.5, {align:'center'});
-    doc.setTextColor(28,26,22);
+  const kw = (CW - 9) / 4;
+  kp.forEach((k, i) => {
+    const x = mg + i * (kw + 3);
+    doc.setFillColor(...C.white); doc.setDrawColor(...C.line); doc.setLineWidth(0.25); doc.rect(x, y, kw, 14, 'FD');
+    doc.setFillColor(...k.c); doc.rect(x, y, kw, 1.2, 'F');
+    doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); ajustar(k.v, kw - 3, 12);
+    txt(k.v, x + kw / 2, y + 7.6, { align: 'center' });
+    doc.setFont('helvetica','normal'); doc.setFontSize(5.8); doc.setTextColor(...C.soft);
+    txt(k.l, x + kw / 2, y + 12, { align: 'center' });
   });
-  y += 42;
+  y += 17.5;
 
-  // Tabla casas
-  doc.setDrawColor(221,216,204);
-  doc.line(mg, y, W-mg, y); y += 7;
-  doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-  doc.text('PAGOS POR CASA', mg, y); y += 5;
+  // ——— 2. Cómo se movió la plata (operacional y reserva) ———
+  const opAnterior = data.saldoOperacional - data.ingresoOperacionalReal + data.gastosOperacionales;
+  const boxes = [
+    { t: 'SALDO OPERACIONAL', f: C.paper, c: C.opT, rows: [
+      ['Saldo anterior', fmtN(opAnterior)],
+      ['+ Ingresos operacionales', fmtN(data.ingresoOperacionalReal)],
+      ['- Gastos operacionales', fmtN(data.gastosOperacionales)] ],
+      total: ['= Saldo operacional', fmtN(data.saldoOperacional)] },
+    { t: 'FONDO DE RESERVA', f: C.paper, c: C.resT, rows: [
+      ['Saldo anterior', fmtN(data.reservaAnterior)],
+      ['+ Aporte de las casas', fmtN(data.aporteReservaReal)],
+      ['- Gastos imputados', fmtN(data.gastosReserva)] ],
+      total: ['= Fondo de reserva', fmtN(data.reservaNueva)] }
+  ];
+  const bw2 = (CW - 4) / 2;
+  asegurar(30);
+  boxes.forEach((b, i) => {
+    const x = mg + i * (bw2 + 4), h = 25.2;
+    doc.setFillColor(...b.f); doc.rect(x, y, bw2, h, 'F');
+    doc.setFillColor(...b.c); doc.rect(x, y, 1.3, h, 'F');
+    doc.setTextColor(...b.c); doc.setFont('helvetica','bold'); doc.setFontSize(7);
+    txt(b.t, x + 4, y + 5);
+    doc.setTextColor(...C.ink); doc.setFontSize(8);
+    b.rows.forEach((r, k) => {
+      doc.setFont('helvetica','normal'); txt(r[0], x + 4, y + 9.6 + k * 3.9);
+      doc.setFont('helvetica','bold');   txt(r[1], x + bw2 - 4, y + 9.6 + k * 3.9, { align: 'right' });
+    });
+    doc.setDrawColor(...b.c); doc.setLineWidth(0.25); doc.line(x + 4, y + 19, x + bw2 - 4, y + 19);
+    doc.setFontSize(9);
+    doc.setTextColor(...b.c); doc.setFont('helvetica','bold'); txt(b.total[0], x + 4, y + 23);
+    txt(b.total[1], x + bw2 - 4, y + 23, { align: 'right' });
+  });
+  y += 25.2 + 4;
 
-  // Header tabla
-  const cols = [mg, mg+45, mg+95, mg+130];
-  doc.setFillColor(45, 90, 39);
-  doc.rect(mg, y, W-mg*2, 7, 'F');
-  doc.setTextColor(255,255,255); doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
-  doc.text(`${data.mes} ${data.anio}`, mg + (W-mg*2)/2, y+4.5, {align:'center'});
+  // ——— 3. Estado de pagos por casa y mes ———
+  const mat = calcularMatrizPagos(data.periodo);
+  const ents = mat.entradas.slice(-12), off = mat.entradas.length - ents.length, nM = ents.length;
+  const wCasa = 17, wM = Math.min(22, (CW - wCasa - 25) / nM), wSaldo = CW - wCasa - nM * wM, rowH = 9.4;
+  asegurar(16 + rowH * CASAS.length + 12);
+  doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  txt('ESTADO DE PAGOS POR CASA Y MES', mg, y + 1); y += 4;
+  const EST = { ok: { f: C.okF, t: C.okT, l: 'PAGADO' }, tarde: { f: C.lateF, t: C.lateT, l: 'CON ATRASO' },
+                parcial: { f: C.parF, t: C.parT, l: 'PAGO PARCIAL' }, deuda: { f: C.redF, t: C.redT, l: 'SIN PAGAR' } };
+  doc.setFillColor(60,60,55); doc.rect(mg, y, wCasa, 7, 'F');
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7); txt('Casa', mg + 2, y + 4.6);
+  ents.forEach((e, j) => {
+    const alerta = CASAS.some(c => ['deuda','parcial'].includes(mat.filas[c][off + j].estado));
+    doc.setFillColor(...(alerta ? C.redT : [60,60,55])); doc.rect(mg + wCasa + j * wM, y, wM, 7, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(6.5);
+    txt(`${MES_CORTO[MESES_ORDEN.indexOf(e.mes)] || e.mes} ${String(e.anio).slice(-2)}`, mg + wCasa + j * wM + wM / 2, y + 4.6, { align: 'center' });
+  });
+  doc.setFillColor(60,60,55); doc.rect(mg + wCasa + nM * wM, y, wSaldo, 7, 'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7); txt('Saldo', mg + wCasa + nM * wM + wSaldo / 2, y + 4.6, { align: 'center' });
   y += 7;
-  doc.setFillColor(60,60,55);
-  doc.rect(mg, y, W-mg*2, 6, 'F');
-  doc.text('Casa', cols[0]+2, y+4);
-  doc.text('Monto pagado', cols[1]+2, y+4);
-  doc.text('Estado', cols[2]+2, y+4);
-  doc.text('Saldo Pendiente', cols[3]+2, y+4);
-  doc.setTextColor(28,26,22); y += 6;
-
-  (data.casasCalc || []).forEach((c, i) => {
-    doc.setFillColor(i%2===0 ? 245 : 255, i%2===0 ? 242 : 253, i%2===0 ? 235 : 248);
-    doc.rect(mg, y, W-mg*2, 8, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.text(`Casa ${c.casa}`, cols[0]+2, y+5.5);
-    doc.setFont('helvetica', 'normal');
-    doc.text(fmtN(c.montoPagado), cols[1]+2, y+5.5);
-    if (c.pagado) { doc.setTextColor(45,90,39); doc.setFont('helvetica','bold'); doc.text('Pagado', cols[2]+2, y+5.5); }
-    else { doc.setTextColor(139,46,46); doc.setFont('helvetica','bold'); doc.text('Pendiente', cols[2]+2, y+5.5); }
-    doc.setTextColor(c.saldoPendiente===0 ? 45 : 139, c.saldoPendiente===0 ? 90 : 46, c.saldoPendiente===0 ? 39 : 46);
-    doc.setFont('helvetica','bold');
-    doc.text(fmtN(c.saldoPendiente), cols[3]+2, y+5.5);
-    doc.setTextColor(28,26,22);
-    y += 8;
+  const ult = mat.entradas[mat.entradas.length - 1];
+  CASAS.forEach(c => {
+    doc.setFillColor(...C.paper); doc.rect(mg, y, wCasa, rowH, 'F');
+    doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(8.5); txt(`Casa ${c}`, mg + 2, y + rowH / 2 + 1.2);
+    ents.forEach((e, j) => {
+      const x = mg + wCasa + j * wM, cel = mat.filas[c][off + j], st = EST[cel.estado];
+      doc.setFillColor(...st.f); doc.setDrawColor(...st.t); doc.setLineWidth(0.35); doc.rect(x + 0.3, y + 0.3, wM - 0.6, rowH - 0.6, cel.estado === 'ok' ? 'F' : 'FD');
+      doc.setTextColor(...st.t); doc.setFont('helvetica','bold');
+      ajustar(fmtN(cel.monto), wM - 1.2, 7); txt(fmtN(cel.monto), x + wM / 2, y + 4.3, { align: 'center' });
+      const lbl = st.l;
+      ajustar(lbl, wM - 1.2, 5); txt(lbl, x + wM / 2, y + 7.3, { align: 'center' });
+      if (cel.abono && !vecinos) { doc.setFont('helvetica','normal'); const ex = `+${fmtN(cel.abono)} deuda`; ajustar(ex, wM - 1.2, 4.6); txt(ex, x + wM / 2, y + 9.4, { align: 'center' }); }
+    });
+    const cc = ult.casasCalc.find(z => z.casa === c) || {}, sx = mg + wCasa + nM * wM, saldo = cc.saldoNuevo || 0;
+    doc.setFillColor(...(saldo < 0 ? C.redT : C.okF)); doc.rect(sx + 0.3, y + 0.3, wSaldo - 0.6, rowH - 0.6, 'F');
+    doc.setTextColor(...(saldo < 0 ? [255,255,255] : C.okT)); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+    txt(saldo < 0 ? `Debe ${fmtN(-saldo)}` : 'Al día', sx + wSaldo / 2, y + rowH / 2 + 1.2, { align: 'center' });
+    y += rowH;
+  });
+  doc.setTextColor(...C.soft); doc.setFont('helvetica','bold'); doc.setFontSize(6.5); txt('Cobrado', mg + 2, y + 4.3);
+  ents.forEach((e, j) => { ajustar(fmtN(e.ingresoTotal), wM - 1, 6.5); txt(fmtN(e.ingresoTotal), mg + wCasa + j * wM + wM / 2, y + 4.3, { align: 'center' }); });
+  doc.setDrawColor(...C.line); doc.setLineWidth(0.2); doc.line(mg, y, W - mg, y);
+  y += 8;
+  let lx = mg;
+  [['ok','Pagado en la fecha'],['tarde','Pagado con atraso'],['parcial','Pago parcial'],['deuda','Sin pagar']].forEach(([k, t]) => {
+    doc.setFillColor(...EST[k].f); doc.setDrawColor(...EST[k].t); doc.rect(lx, y - 2.5, 3.2, 3.2, 'FD');
+    doc.setTextColor(...C.soft); doc.setFont('helvetica','normal'); doc.setFontSize(6.5); txt(t, lx + 4.6, y + 0.1);
+    lx += 4.6 + doc.getTextWidth(t) + 6;
   });
   y += 5;
 
-  // Estado de pagos por casa y mes (hasta el mes de este informe)
-  const mat = calcularMatrizPagos(data.periodo);
-  if (mat.entradas.length > 0) {
-    const MAX_MESES = 12;
-    const ents = mat.entradas.slice(-MAX_MESES);
-    const off = mat.entradas.length - ents.length;
-    const nM = ents.length;
-    const wCasa = 17;
-    const wM = Math.min(22, (W - mg*2 - wCasa - 25) / nM);
-    const wSaldo = W - mg*2 - wCasa - nM*wM;   // la columna Saldo ocupa lo que sobra
-    const tablaW = wCasa + nM*wM + wSaldo;
-    const rowH = 11;
-    asegurarEspacio(18 + rowH*CASAS.length + 30);
-
-    doc.setDrawColor(221,216,204); doc.line(mg, y, W-mg, y); y += 7;
-    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(28,26,22);
-    doc.text('ESTADO DE PAGOS POR CASA Y MES', mg, y); y += 5;
-
-    const EST = {
-      ok:      { fill:[232,240,230], txt:[45,90,39],   lbl:'PAGADO' },
-      tarde:   { fill:[253,246,227], txt:[160,131,42], lbl:'CON ATRASO' },
-      parcial: { fill:[253,235,213], txt:[154,90,18],  lbl:null },
-      deuda:   { fill:[245,232,232], txt:[139,46,46],  lbl:null }
+  // ——— 4. Gastos del período ———
+  const oper = (data.gastos || []).filter(g => g.imputar === 'operacional');
+  const res = (data.gastos || []).filter(g => g.imputar === 'reserva');
+  if (oper.length + res.length) {
+    asegurar(14 + (oper.length + res.length) * 4.6 + 12);
+    doc.setDrawColor(...C.line); doc.line(mg, y, W - mg, y); y += 5.5;
+    doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(9); txt('GASTOS DEL PERÍODO', mg, y); y += 4.5;
+    const bloque = (titulo, lista, col, subt) => {
+      if (!lista.length) return;
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...col); txt(titulo, mg, y); y += 4;
+      lista.forEach(g => {
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.3); doc.setTextColor(...C.ink); txt(`• ${g.desc}`, mg + 2, y);
+        doc.setFont('helvetica','bold'); txt(fmtN(g.monto), W - mg - 2, y, { align: 'right' }); y += 4.2;
+      });
+      doc.setDrawColor(...C.line); doc.line(W - mg - 40, y - 2.6, W - mg - 2, y - 2.6);
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...col);
+      txt('Subtotal', W - mg - 28, y + 0.6, { align: 'right' }); txt(fmtN(lista.reduce((t, g) => t + g.monto, 0)), W - mg - 2, y + 0.6, { align: 'right' });
+      y += 5;
     };
-    const ajustar = (txt, maxW, size) => { doc.setFontSize(size); while (size > 3.5 && doc.getTextWidth(txt) > maxW) { size -= 0.3; doc.setFontSize(size); } };
-
-    // Encabezado (los meses con deuda pendiente van en rojo)
-    doc.setFillColor(60,60,55); doc.rect(mg, y, wCasa, 7, 'F');
-    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(7);
-    doc.text('Casa', mg+2, y+4.6);
-    ents.forEach((e, j) => {
-      const alerta = CASAS.some(c => ['deuda','parcial'].includes(mat.filas[c][off+j].estado));
-      doc.setFillColor(...(alerta ? [139,46,46] : [60,60,55]));
-      doc.rect(mg + wCasa + j*wM, y, wM, 7, 'F');
-      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
-      doc.text(`${MES_CORTO[MESES_ORDEN.indexOf(e.mes)] || e.mes} ${String(e.anio).slice(-2)}`, mg + wCasa + j*wM + wM/2, y+4.6, {align:'center'});
-    });
-    doc.setFillColor(60,60,55); doc.rect(mg + wCasa + nM*wM, y, wSaldo, 7, 'F');
-    doc.setTextColor(255,255,255); doc.setFontSize(7);
-    doc.text('Saldo', mg + wCasa + nM*wM + wSaldo/2, y+4.6, {align:'center'});
-    y += 7;
-
-    const ultimaEntrada = mat.entradas[mat.entradas.length - 1];
-    CASAS.forEach(c => {
-      doc.setFillColor(245,242,235); doc.rect(mg, y, wCasa, rowH, 'F');
-      doc.setTextColor(28,26,22); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
-      doc.text(`Casa ${c}`, mg+2, y+rowH/2+1.2);
-      ents.forEach((e, j) => {
-        const x = mg + wCasa + j*wM, cel = mat.filas[c][off+j], st = EST[cel.estado];
-        doc.setFillColor(...st.fill); doc.rect(x+0.3, y+0.3, wM-0.6, rowH-0.6, 'F');
-        doc.setTextColor(...st.txt);
-        doc.setFont('helvetica','bold'); ajustar(fmtN(cel.monto), wM-1.2, 7);
-        doc.text(fmtN(cel.monto), x+wM/2, y+4.2, {align:'center'});
-        const lbl = st.lbl || `DEBE ${fmtN(cel.pendiente)}`;
-        ajustar(lbl, wM-1.2, 5);
-        doc.text(lbl, x+wM/2, y+7.1, {align:'center'});
-        if (cel.abono) {
-          doc.setFont('helvetica','normal');
-          const ex = `+${fmtN(cel.abono)} deuda`;
-          ajustar(ex, wM-1.2, 4.6);
-          doc.text(ex, x+wM/2, y+9.6, {align:'center'});
-        }
-      });
-      const cc = (ultimaEntrada.casasCalc.find(z => z.casa === c) || {});
-      const sx = mg + wCasa + nM*wM, saldo = cc.saldoNuevo || 0;
-      doc.setFillColor(...(saldo < 0 ? [139,46,46] : [232,240,230])); doc.rect(sx+0.3, y+0.3, wSaldo-0.6, rowH-0.6, 'F');
-      doc.setTextColor(...(saldo < 0 ? [255,255,255] : [45,90,39])); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
-      doc.text(saldo < 0 ? `Debe ${fmtN(-saldo)}` : 'Al día', sx+wSaldo/2, y+rowH/2+(saldo > 0 ? -0.4 : 1.2), {align:'center'});
-      if (saldo > 0) { doc.setFontSize(6); doc.text(`+${fmtN(saldo)}`, sx+wSaldo/2, y+rowH/2+3, {align:'center'}); }
-      y += rowH;
-    });
-
-    // Fila de totales cobrados
-    doc.setTextColor(100,96,88); doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
-    doc.text('Cobrado', mg+2, y+4.5);
-    ents.forEach((e, j) => {
-      ajustar(fmtN(e.ingresoTotal), wM-1, 6.5);
-      doc.text(fmtN(e.ingresoTotal), mg + wCasa + j*wM + wM/2, y+4.5, {align:'center'});
-    });
-    doc.setDrawColor(221,216,204); doc.line(mg, y, mg+tablaW, y);
-    y += 8;
-
-    // Leyenda
-    let lx = mg;
-    [['ok','Pagado en su mes'],['tarde','Pagó con atraso'],['parcial','Pago parcial'],['deuda','Sin pagar']].forEach(([k, t]) => {
-      doc.setFillColor(...EST[k].fill); doc.setDrawColor(...EST[k].txt);
-      doc.rect(lx, y-2.6, 3.5, 3.5, 'FD');
-      doc.setTextColor(100,96,88); doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
-      doc.text(t, lx+5, y+0.1);
-      lx += 5 + doc.getTextWidth(t) + 6;
-    });
-    if (off > 0) { doc.text(`Se muestran los últimos ${MAX_MESES} meses.`, W-mg, y+0.1, {align:'right'}); }
-    doc.setTextColor(28,26,22);
-    y += 9;
+    bloque('OPERACIONALES', oper, C.opT);
+    bloque('IMPUTADOS A FONDO DE RESERVA', res, C.resT);
   }
 
-  // Gastos
-  if (data.gastos && data.gastos.length > 0) {
-    asegurarEspacio(20 + data.gastos.length * 5.5);
-    doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y += 7;
-    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('GASTOS DEL PERÍODO', mg, y); y += 5;
-    const oper = data.gastos.filter(g=>g.imputar==='operacional');
-    const res = data.gastos.filter(g=>g.imputar==='reserva');
-    if (oper.length > 0) {
-      doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(30,77,122);
-      doc.text('OPERACIONALES', mg, y); doc.setTextColor(28,26,22); y += 4;
-      oper.forEach(g => {
-        doc.setFontSize(8.5); doc.setFont('helvetica','normal');
-        doc.text(`• ${g.desc}`, mg+2, y); doc.setFont('helvetica','bold');
-        doc.text(fmtN(g.monto), W-mg-2, y, {align:'right'}); y += 5.5;
-      });
-    }
-    if (res.length > 0) {
-      y += 2;
-      doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(160,131,42);
-      doc.text('IMPUTADOS A FONDO RESERVA', mg, y); doc.setTextColor(28,26,22); y += 4;
-      res.forEach(g => {
-        doc.setFontSize(8.5); doc.setFont('helvetica','normal');
-        doc.text(`• ${g.desc}`, mg+2, y); doc.setFont('helvetica','bold'); doc.setTextColor(160,131,42);
-        doc.text(fmtN(g.monto), W-mg-2, y, {align:'right'}); doc.setTextColor(28,26,22); y += 5.5;
-      });
-    }
-    y += 3;
-  }
+  // ——— 5. Gráficos de evolución (barras con valores, base en $0) ———
+  const miles = v => { const a = Math.abs(v); const t = a >= 1000 ? `$${fmt(Math.round(a / 1000))} mil` : `$${fmt(a)}`; return (v < 0 ? '-' : '') + t; };
+  const mezcla = (c, k) => c.map(v => Math.round(v + (255 - v) * k));   // aclara un color
+  const hG = 34, wG = (CW - 4) / 2;
+  asegurar(hG + 6);
+  y += 1;
+  const grafico = (x, titulo, vals, col, actualTxt, deltaTxt) => {
+    doc.setFillColor(...C.white); doc.setDrawColor(...C.line); doc.setLineWidth(0.25); doc.rect(x, y, wG, hG, 'FD');
+    doc.setFillColor(...col); doc.rect(x, y, wG, 1.2, 'F');
+    doc.setTextColor(...C.soft); doc.setFont('helvetica','bold'); doc.setFontSize(6.5); txt(titulo, x + 4, y + 6);
+    doc.setTextColor(...C.ink); doc.setFontSize(11); txt(actualTxt, x + 4, y + 12.2);
+    if (deltaTxt) { doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(...C.soft); txt(deltaTxt, x + wG - 4, y + 12.2, { align: 'right' }); }
+    const n = vals.length, ejeW = 15;
+    const px = x + 4 + ejeW, pw = wG - 8 - ejeW, py = y + 17.5, ph = hG - 17.5 - 7.5;
+    const mx = Math.max(0, ...vals), mn = Math.min(0, ...vals), rango = (mx - mn) || 1;
+    const Y = v => py + ph - (v - mn) / rango * ph;
+    // línea base ($0) y línea del máximo, con sus valores
+    doc.setLineWidth(0.15); doc.setDrawColor(...C.line);
+    doc.line(px, Y(mx), px + pw, Y(mx)); doc.setDrawColor(150,146,138); doc.line(px, Y(0), px + pw, Y(0));
+    doc.setFont('helvetica','normal'); doc.setFontSize(5.5); doc.setTextColor(...C.soft);
+    txt(miles(mx), px - 1.5, Y(mx) + 0.9, { align: 'right' }); txt('$0', px - 1.5, Y(0) + 0.9, { align: 'right' });
+    if (mn < 0) txt(miles(mn), px - 1.5, Y(mn) + 0.9, { align: 'right' });
+    const slot = pw / n, bw = Math.min(slot * 0.62, 11);
+    ents.forEach((e, i) => {
+      const v = vals[i], ultimo = i === n - 1, cx = px + slot * i + slot / 2;
+      const base = v < 0 ? C.redT : col;
+      doc.setFillColor(...(ultimo ? base : mezcla(base, 0.55)));
+      const yTop = Math.min(Y(v), Y(0)), alto = Math.max(Math.abs(Y(v) - Y(0)), 0.3);
+      doc.rect(cx - bw / 2, yTop, bw, alto, 'F');
+      // valor sobre (o bajo) la barra; si hay muchos meses, solo alternados y el último
+      if (n <= 8 || ultimo || i % 2 === (n - 1) % 2) {
+        doc.setFont('helvetica', ultimo ? 'bold' : 'normal'); doc.setFontSize(ultimo ? 6 : 5.3); doc.setTextColor(...(ultimo ? C.ink : C.soft));
+        const lbl = miles(v); ajustar(lbl, slot * 1.9, ultimo ? 6 : 5.3);
+        txt(lbl, cx, v < 0 ? Y(v) + 2.6 : yTop - 0.9, { align: 'center' });
+      }
+      doc.setFont('helvetica','normal'); doc.setFontSize(5.5); doc.setTextColor(...C.soft);
+      txt(MES_CORTO[MESES_ORDEN.indexOf(e.mes)] || e.mes, cx, y + hG - 2.2, { align: 'center' });
+    });
+  };
+  const prev = ents.length > 1 ? ents[ents.length - 2] : null;
+  const delta = (v, p) => p == null ? '' : `${v - p >= 0 ? '+' : '-'}${miles(Math.abs(v - p))} vs mes anterior`;
+  grafico(mg, 'FONDO DE RESERVA POR MES', ents.map(e => e.reservaNueva), C.resT, '+' + fmtN(data.reservaNueva), delta(data.reservaNueva, prev && prev.reservaNueva));
+  grafico(mg + wG + 4, 'SALDO OPERACIONAL POR MES', ents.map(e => e.saldoOperacional), C.opT, fmtN(data.saldoOperacional), delta(data.saldoOperacional, prev && prev.saldoOperacional));
+  y += hG + 4;
 
-  // Detalle fondo reserva
-  asegurarEspacio(34);
-  doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y += 7;
-  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('FONDO DE RESERVA', mg, y); y += 5;
-  const alturaReserva = data.gastosReserva>0 ? 22 : 16; doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,alturaReserva,'F');
-  doc.setFontSize(8.5); doc.setFont('helvetica','normal');
-  doc.text(`Saldo anterior: ${fmtN(data.reservaAnterior)}`, mg+3, y+5);
-  doc.text(`+ Aporte mensual: ${fmtN(data.aporteReservaReal != null ? data.aporteReservaReal : APORTE_RESERVA)}`, mg+3, y+11);
-  if (data.gastosReserva > 0) { doc.setTextColor(139,46,46); doc.text(`- Gastos imputados: ${fmtN(data.gastosReserva)}`, mg+3, y+17); doc.setTextColor(28,26,22); }
-  doc.setFont('helvetica','bold'); doc.setFontSize(10);
-  doc.text(`= ${fmtN(data.reservaNueva)}`, W-mg-3, y+(data.gastosReserva>0?17:11), {align:'right'});
-  y += data.gastosReserva>0 ? 26 : 20;
+  // ——— 6. Cómo pagar (franja ancha) ———
+  const P = datosPago();
+  const iMes = MESES_ORDEN.indexOf(data.mes), sigMes = MESES_ORDEN[(iMes + 1) % 12], sigAnio = iMes === 11 ? Number(data.anio) + 1 : data.anio;
+  asegurar(18);
+  doc.setFillColor(...C.white); doc.setDrawColor(...C.line); doc.setLineWidth(0.25); doc.rect(mg, y, CW, 16.5, 'FD');
+  doc.setFillColor(...C.ink); doc.rect(mg, y, 1.3, 16.5, 'F');
+  doc.setTextColor(...C.ink); doc.setFont('helvetica','bold'); doc.setFontSize(6.8); txt('CÓMO PAGAR', mg + 5, y + 4.4);
+  doc.setFontSize(8.2); txt(`Cuota de ${sigMes}: ${fmtN(CUOTA_BASE)} · vence el 5 de ${sigMes} de ${sigAnio}`, mg + 5, y + 8.8);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.2);
+  txt(`${P.banco} · ${P.cuenta} · Titular: ${P.titular} · RUT ${P.rut}`, mg + 5, y + 12.6);
+  doc.setFont('helvetica','bold'); doc.setFontSize(7.2);
+  txt(`Enviar comprobante a ${P.correo}`, mg + 5, y + 15.6);
+  y += 18;
 
-  // Notas
-  if (data.notas) {
-    asegurarEspacio(Math.min(60, doc.splitTextToSize(String(data.notas), W-mg*2-4).length * 5 + 18));
-    doc.setDrawColor(221,216,204); doc.line(mg,y,W-mg,y); y+=7;
-    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.text('AVISOS Y NOTAS', mg, y); y+=5;
-    doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
-    const lines = doc.splitTextToSize(data.notas, W-mg*2-4);
-    doc.setFillColor(253,246,227); doc.rect(mg,y,W-mg*2,lines.length*5+5,'F');
-    doc.text(lines, mg+3, y+4); y += lines.length*5+9;
-  }
-
-  // Footer
+  // ——— Pie de página ———
   const nPag = doc.getNumberOfPages();
   for (let i = 1; i <= nPag; i++) {
-    doc.setPage(i);
-    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(160,155,145);
-    doc.text(`Generado el ${new Date().toLocaleDateString('es-CL')} · Condominio${nPag > 1 ? ` · Página ${i} de ${nPag}` : ''}`, W/2, 290, {align:'center'});
+    doc.setPage(i); doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(160,155,145);
+    txt(`Preparado por la administración del condominio · Generado el ${new Date().toLocaleDateString('es-CL')}${nPag > 1 ? ` · Página ${i} de ${nPag}` : ''}`, W / 2, 291, { align: 'center' });
   }
-  doc.save(`GastosComunes_${data.mes}${data.anio}.pdf`);
-  showToast('✓ PDF descargado');
+  const nombre = `GastosComunes_${data.mes}${data.anio}.pdf`;
+  if (accion === 'compartir') {
+    const archivo = new File([doc.output('blob')], nombre, { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      try { await navigator.share({ files: [archivo], title: `Gastos comunes ${data.mes} ${data.anio}` }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    showToast('Este dispositivo no permite compartir: se descargó el PDF');
+  }
+  doc.save(nombre);
+  if (accion !== 'compartir') showToast('✓ PDF descargado');
 }
 
 // ——— API ———
