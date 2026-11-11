@@ -132,6 +132,8 @@
   .matriz .c b { display: block; font-size: 13px; font-weight: 600; }
   .matriz .c small { display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .2px; margin-top: 1px; }
   .matriz .c small.abono { font-weight: 500; font-style: italic; opacity: .85; }
+  .matriz .c.tocable { cursor: pointer; }
+  .matriz .c.tocable:active { transform: scale(.96); }
   .c.ok { background: var(--accent-light); color: var(--accent); border-color: #c8dac4; }
   .c.tarde { background: var(--gold-light); color: var(--gold); border-color: #e6d3a4; }
   .c.parcial { background: #fdebd5; color: #9a5a12; border-color: #ecc79a; }
@@ -275,7 +277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ——— DATOS CRUDOS Y CÁLCULO ———
 // El servidor guarda SOLO lo que se ingresa (meses, pagos, gastos, abonos). Todo saldo se calcula acá,
 // cada vez que se muestran los datos, así nunca puede quedar un total "viejo" guardado y descuadrado.
-let _raw = { meses: [], abonos: [], config: { reservaInicial: 0, saldoOperacionalInicial: 0 } };
+let _raw = { meses: [], abonos: [], atrasos: [], config: { reservaInicial: 0, saldoOperacionalInicial: 0 } };
 
 // Reparte lo pagado acumulado por una casa entre operacional y reserva: cada cuota de $20.000
 // cubre primero su parte operacional ($11.000) y luego su parte de reserva ($9.000).
@@ -341,7 +343,7 @@ function calcularHistorialPuro(raw) {
 }
 
 function aplicarDatos(data) {
-  _raw = { meses: data.meses || [], abonos: data.abonos || [], config: data.config || {} };
+  _raw = { meses: data.meses || [], abonos: data.abonos || [], atrasos: data.atrasos || [], config: data.config || {} };
   const r = calcularHistorialPuro(_raw);
   _historialCache = r.historial;
   _saldosCasasCache = r.saldosCasas;
@@ -352,13 +354,13 @@ function aplicarDatos(data) {
 async function cargarTodo() {
   try {
     const res = await jsonpGet('getData');
-    if (!res || res.ok !== true || !res.data || res.data.version !== 2) {
+    if (!res || res.ok !== true || !res.data || res.data.version < 3) {
       throw new Error(res && res.error ? res.error : 'El servidor no está actualizado (falta desplegar la versión 2 del Apps Script)');
     }
     aplicarDatos(res.data);
   } catch(e) {
     showToast('⚠️ ' + (e.message || 'Sin conexión'));
-    aplicarDatos({ meses: [], abonos: [], config: {} });
+    aplicarDatos({ meses: [], abonos: [], atrasos: [], config: {} });
   }
 }
 
@@ -718,13 +720,15 @@ function calcularMatrizPagos(hastaPeriodo) {
       }
       credito += sobra;
     });
-    filas[c] = celdas.map(x => {
+    filas[c] = celdas.map((x, idx) => {
       let estado;
       if (x.faltaInicial === 0 || (x.propio >= CUOTA_BASE)) estado = 'ok';
       else if (x.falta === 0) estado = 'tarde';
       else estado = (x.propio > 0 || x.falta < CUOTA_BASE) ? 'parcial' : 'deuda';
-      return { monto: x.base, abono: x.abono, estado, pendiente: x.falta,
-               cubiertoPorCredito: x.propio < CUOTA_BASE && x.faltaInicial > 0 && x.falta === 0 && estado === 'ok' };
+      const manual = (_raw.atrasos || []).some(a => a.periodo === entradas[idx].periodo && a.casa === c);
+      if (estado === 'ok' && manual) estado = 'tarde';
+      return { monto: x.base, abono: x.abono, estado, pendiente: x.falta, periodo: entradas[idx].periodo, manual,
+               marcable: estado === 'ok' || (estado === 'tarde' && manual) };
     });
   });
   return { entradas, filas };
@@ -747,11 +751,12 @@ function renderMatrizPagos() {
     filas[c].forEach(x => {
       let linea2 = '';
       if (x.estado === 'ok') linea2 = '✓ Pagado';
-      if (x.estado === 'tarde') linea2 = '↻ Pagó después';
+      if (x.estado === 'tarde') linea2 = '↻ Pagó con atraso';
       if (x.estado === 'parcial') linea2 = `⚠ Debe $${fmt(x.pendiente)}`;
       if (x.estado === 'deuda') linea2 = `✕ Debe $${fmt(x.pendiente)}`;
       const extra = x.abono ? `<small class="abono">+$${fmt(x.abono)} pago deuda</small>` : '';
-      h += `<td class="celda"><div class="c ${x.estado}"><b>$${fmt(x.monto)}</b><small>${linea2}</small>${extra}</div></td>`;
+      const click = x.marcable ? ` onclick="alternarAtraso(${x.periodo},'${c}')" title="Tocar para marcar o quitar 'pagó con atraso'"` : '';
+      h += `<td class="celda"><div class="c ${x.estado}${x.marcable ? ' tocable' : ''}"${click}><b>$${fmt(x.monto)}</b><small>${linea2}</small>${extra}</div></td>`;
     });
     const saldo = _saldosCasasCache[c] || 0;
     h += `<td class="celda col-saldo"><div class="s ${saldo < 0 ? 'deuda' : 'ok'}">${
@@ -764,7 +769,8 @@ function renderMatrizPagos() {
     <div class="matriz-leyenda">
       <span class="l-ok">Pagado en su mes</span><span class="l-tarde">Pagó con atraso</span>
       <span class="l-parcial">Pago parcial</span><span class="l-deuda">Sin pagar</span>
-    </div>`;
+    </div>
+    <p style="font-size:10.5px;color:var(--ink-soft);margin-top:8px">Toca un casillero pagado para marcarlo como <b>pagó con atraso</b> (solo cambia la etiqueta, no los montos). Tócalo de nuevo para quitar la marca.</p>`;
   return h;
 }
 
@@ -843,6 +849,25 @@ async function saldarDeuda() {
     actualizarHeaderMes();
     showToast(`✓ Pago de Casa ${casa} registrado: $${fmt(monto)}`);
   } catch(e) { showToast('❌ No se guardó: ' + (e.message || 'revisa la conexión')); }
+  showLoading(false);
+}
+
+async function alternarAtraso(periodo, casa) {
+  const e = Object.values(_historialCache).find(x => x.periodo === periodo);
+  if (!e) return;
+  const ya = (_raw.atrasos || []).some(a => a.periodo === periodo && a.casa === casa);
+  const msg = ya
+    ? `¿Quitar la marca "pagó con atraso" de la Casa ${casa} en ${e.mes} ${e.anio}?`
+    : `¿Marcar la Casa ${casa} en ${e.mes} ${e.anio} como "pagó con atraso"?\n\nSolo cambia la etiqueta, no los montos ni los saldos.`;
+  if (!confirm(msg)) return;
+  showLoading(true, 'Guardando...');
+  try {
+    const res = await apiPost({ action: 'setAtraso', periodo, casa, atraso: !ya });
+    if (!res || res.ok !== true || !res.data) throw new Error(res && res.error ? res.error : 'El servidor no confirmó (¿falta actualizar el Apps Script?)');
+    aplicarDatos(res.data);
+    renderEstado();
+    showToast(ya ? '✓ Marca quitada' : '✓ Marcado como pagó con atraso');
+  } catch(e2) { showToast('❌ No se guardó: ' + (e2.message || 'revisa la conexión')); }
   showLoading(false);
 }
 
