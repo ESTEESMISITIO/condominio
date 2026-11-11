@@ -9,10 +9,16 @@
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
   :root {
     --bg: #f5f2eb; --paper: #fffdf8; --ink: #1c1a16; --ink-soft: #6b6558;
-    --accent: #2d5a27; --accent-light: #e8f0e6;
-    --danger: #8b2e2e; --danger-light: #f5e8e8;
-    --gold: #a0832a; --gold-light: #fdf6e3;
-    --blue: #1e4d7a; --blue-light: #e6eef5;
+    /* Interfaz (botones, pestañas): neutra, para que los colores signifiquen una sola cosa */
+    --accent: #1c1a16; --accent-light: #ece8de;
+    /* Estado de pago */
+    --ok: #266648;    --ok-light: #e2eee6;    --ok-border: #c3d9cb;
+    --late: #20548a;  --late-light: #e0eaf6;  --late-border: #b4cbe6;
+    --par: #855c00;   --par-light: #f8ecce;   --par-border: #e6cf92;
+    --danger: #9b2323; --danger-light: #f8e1e1; --danger-border: #e1b3b3;
+    /* Fondos */
+    --op: #3e4c59;    --op-light: #e8ebee;
+    --res: #664a7a;   --res-light: #eee9f2;
     --border: #ddd8cc; --radius: 10px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,7 +50,7 @@
   .casa-row input[type="number"] { flex: 1; margin-bottom: 0; padding: 7px 9px; font-size: 13px; }
   .toggle-pago { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
   .toggle-pago button { border: none; padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; background: var(--bg); color: var(--ink-soft); font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
-  .toggle-pago button.pagado.active { background: var(--accent); color: #fff; }
+  .toggle-pago button.pagado.active { background: var(--ok); color: #fff; }
   .toggle-pago button.pendiente.active { background: var(--danger); color: #fff; }
 
   /* GASTO ROW */
@@ -55,7 +61,7 @@
   /* BUTTONS */
   .btn { width: 100%; padding: 12px; border: none; border-radius: var(--radius); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; margin-top: 4px; }
   .btn-primary { background: var(--ink); color: var(--bg); }
-  .btn-secondary { background: var(--accent-light); color: var(--accent); border: 1px solid #c0d4bc; }
+  .btn-secondary { background: var(--accent-light); color: var(--ink); border: 1px solid var(--border); }
   .btn-add { background: none; border: 1px dashed var(--border); color: var(--ink-soft); font-size: 12px; padding: 8px; margin-top: 2px; }
   .btn-pdf { background: var(--accent); color: white; }
   .btn:active { transform: scale(0.97); }
@@ -63,17 +69,19 @@
   /* RESUMEN BOXES */
   .resumen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 12px; }
   .resumen-box { background: var(--paper); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 10px; text-align: center; }
-  .resumen-box.accent { background: var(--accent-light); border-color: #c0d4bc; }
-  .resumen-box.gold { background: var(--gold-light); border-color: #e0ccaa; }
-  .resumen-box.blue { background: var(--blue-light); border-color: #b0c8e0; }
-  .resumen-box.danger { background: var(--danger-light); border-color: #e0b0b0; }
+  .resumen-box { position: relative; background: #fff; overflow: hidden; }
+  .resumen-box::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--ink-soft); }
+  .resumen-box.op::before { background: var(--op); }
+  .resumen-box.res::before { background: var(--res); }
+  .resumen-box.danger::before { background: var(--danger); }
+  .resumen-box.danger .resumen-val { color: var(--danger); }
   .resumen-val { font-family: 'DM Serif Display', serif; font-size: 19px; display: block; margin-bottom: 2px; }
   .resumen-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ink-soft); }
 
   /* TABLA CASAS */
   .tabla-casas { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 4px; }
   .tabla-casas th { background: var(--ink); color: var(--bg); padding: 7px 8px; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
-  .tabla-casas th.mes-header { background: var(--accent); font-size: 11px; letter-spacing: 0.5px; }
+  .tabla-casas th.mes-header { background: #3c3c37; font-size: 11px; letter-spacing: 0.5px; }
   .tabla-casas th.left { text-align: left; }
   .tabla-casas td { padding: 8px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .tabla-casas td.casa-nombre { font-weight: 700; font-size: 13px; }
@@ -81,16 +89,16 @@
   .tabla-casas td.estado { text-align: center; }
   .tabla-casas td.saldo { text-align: right; font-weight: 700; }
   .tabla-casas tr:last-child td { border-bottom: none; }
-  .tag-pagado { background: var(--accent-light); color: var(--accent); padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .tag-pagado { background: var(--ok-light); color: var(--ok); padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
   .tag-pendiente { background: var(--danger-light); color: var(--danger); padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
-  .saldo-ok { color: var(--accent); }
+  .saldo-ok { color: var(--ok); }
   .saldo-mal { color: var(--danger); }
 
   /* ESTADO CASAS */
   .estado-casa { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; background: var(--paper); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 5px; }
   .estado-casa .nombre { font-weight: 700; font-size: 13px; }
   .deuda-tag { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 700; }
-  .tag-ok { background: var(--accent-light); color: var(--accent); }
+  .tag-ok { background: var(--ok-light); color: var(--ok); }
   .tag-deuda { background: var(--danger-light); color: var(--danger); }
 
   /* HISTORIAL */
@@ -98,7 +106,7 @@
   .historial-header { display: flex; justify-content: space-between; align-items: center; }
   .historial-mes { font-family: 'DM Serif Display', serif; font-size: 15px; }
   .historial-balance { font-size: 12px; font-weight: 700; }
-  .historial-balance.pos { color: var(--accent); }
+  .historial-balance.pos { color: var(--op); }
   .historial-balance.neg { color: var(--danger); }
   .historial-detail { display: none; margin-top: 11px; border-top: 1px solid var(--border); padding-top: 9px; font-size: 12px; color: var(--ink-soft); line-height: 1.7; }
   .historial-item.open .historial-detail { display: block; }
@@ -114,8 +122,8 @@
   .empty-state .emoji { font-size: 30px; display: block; margin-bottom: 9px; }
   .badge-count { display: inline-block; background: var(--danger); color: white; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 10px; margin-left: 3px; vertical-align: middle; }
   .imputar-tag { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; }
-  .imputar-oper { background: var(--blue-light); color: var(--blue); }
-  .imputar-reserva { background: var(--gold-light); color: var(--gold); }
+  .imputar-oper { background: var(--op-light); color: var(--op); }
+  .imputar-reserva { background: var(--res-light); color: var(--res); }
 
   /* MATRIZ DE PAGOS */
   .matriz-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
@@ -134,22 +142,22 @@
   .matriz .c small.abono { font-weight: 500; font-style: italic; opacity: .85; }
   .matriz .c.tocable { cursor: pointer; }
   .matriz .c.tocable:active { transform: scale(.96); }
-  .c.ok { background: var(--accent-light); color: var(--accent); border-color: #c8dac4; }
-  .c.tarde { background: var(--gold-light); color: var(--gold); border-color: #e6d3a4; }
-  .c.parcial { background: #fdebd5; color: #9a5a12; border-color: #ecc79a; }
-  .c.deuda { background: var(--danger-light); color: var(--danger); border-color: #dcaaaa; box-shadow: inset 0 0 0 1px #dcaaaa; }
+  .c.ok { background: var(--ok-light); color: var(--ok); border-color: var(--ok-border); }
+  .c.tarde { background: var(--late-light); color: var(--late); border-color: var(--late); }
+  .c.parcial { background: var(--par-light); color: var(--par); border-color: var(--par); }
+  .c.deuda { background: var(--danger-light); color: var(--danger); border-color: var(--danger); }
   .matriz td.col-saldo, .matriz th.col-saldo { padding-left: 6px; text-align: center; }
   .matriz .s { min-width: 70px; border-radius: 7px; padding: 6px 6px; text-align: center; font-size: 11px; font-weight: 700; line-height: 1.25; }
-  .s.ok { color: var(--accent); background: transparent; border: 1px dashed #c8dac4; }
+  .s.ok { color: var(--ok); background: var(--ok-light); border: 1px solid transparent; }
   .s.deuda { color: #fff; background: var(--danger); }
   .matriz tfoot td { padding: 8px 3px 0; text-align: center; font-size: 11px; color: var(--ink-soft); font-weight: 600; border-top: 1px solid var(--border); }
   .matriz tfoot td.col-casa { font-size: 10px; text-transform: uppercase; letter-spacing: .4px; font-weight: 700; box-shadow: none; }
   .matriz-leyenda { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; font-size: 10.5px; color: var(--ink-soft); }
   .matriz-leyenda span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; border: 1px solid; }
-  .matriz-leyenda .l-ok::before { background: var(--accent-light); border-color: #c8dac4; }
-  .matriz-leyenda .l-tarde::before { background: var(--gold-light); border-color: #e6d3a4; }
-  .matriz-leyenda .l-parcial::before { background: #fdebd5; border-color: #ecc79a; }
-  .matriz-leyenda .l-deuda::before { background: var(--danger-light); border-color: #dcaaaa; }
+  .matriz-leyenda .l-ok::before { background: var(--ok-light); border-color: var(--ok); }
+  .matriz-leyenda .l-tarde::before { background: var(--late-light); border-color: var(--late); }
+  .matriz-leyenda .l-parcial::before { background: var(--par-light); border-color: var(--par); }
+  .matriz-leyenda .l-deuda::before { background: var(--danger-light); border-color: var(--danger); }
 </style>
 </head>
 <body>
@@ -561,7 +569,7 @@ function cargarMesExistente(key) {
     const card = document.getElementById('casas-container').closest('.card');
     const div = document.createElement('div');
     div.id = 'editando-mes-banner';
-    div.style.cssText = 'background:var(--gold-light);border:1px solid #e0ccaa;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ink)';
+    div.style.cssText = 'background:var(--accent-light);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ink)';
     div.textContent = `✏️ Editando ${entry.mes} ${entry.anio} — ya existía en el historial, se precargaron sus datos.`;
     card.parentNode.insertBefore(div, card);
   } else {
@@ -596,11 +604,11 @@ async function guardarMes() {
 
 // ——— RENDER RESUMEN ———
 function renderResumen(data) {
-  const saldoOpClass = data.saldoOperacional >= 0 ? 'accent' : 'danger';
+  const saldoOpClass = data.saldoOperacional >= 0 ? 'op' : 'danger';
 
   let html = `
     <div class="resumen-grid">
-      <div class="resumen-box accent">
+      <div class="resumen-box">
         <span class="resumen-val">$${fmt(data.ingresoTotal)}</span>
         <span class="resumen-lbl">Ingresos cobrados</span>
       </div>
@@ -612,7 +620,7 @@ function renderResumen(data) {
         <span class="resumen-val">${data.saldoOperacional >= 0 ? '+' : ''}$${fmt(data.saldoOperacional)}</span>
         <span class="resumen-lbl">Saldo operacional</span>
       </div>
-      <div class="resumen-box gold">
+      <div class="resumen-box res">
         <span class="resumen-val">+$${fmt(data.reservaNueva)}</span>
         <span class="resumen-lbl">Fondo reserva</span>
       </div>
@@ -658,7 +666,7 @@ function renderResumen(data) {
     if (reserva.length > 0) {
       html += `<p class="section-sub" style="margin-top:8px">Imputados a Fondo Reserva</p>`;
       reserva.forEach(g => {
-        html += `<div class="info-row"><span>• ${g.desc}</span><strong style="color:var(--gold)">$${fmt(g.monto)}</strong></div>`;
+        html += `<div class="info-row"><span>• ${g.desc}</span><strong style="color:var(--res)">$${fmt(g.monto)}</strong></div>`;
       });
     }
     html += `</div>`;
@@ -673,7 +681,7 @@ function renderResumen(data) {
     <div class="info-row"><span>+ Aporte del mes ${aporteIncompleto ? '(incompleto, hay casas que no pagaron)' : ''}</span><strong style="${aporteIncompleto ? 'color:var(--danger)' : ''}">$${fmt(aporteReal)}</strong></div>
     ${data.gastosReserva > 0 ? `<div class="info-row"><span>− Gastos imputados</span><strong style="color:var(--danger)">$${fmt(data.gastosReserva)}</strong></div>` : ''}
     <hr class="divider">
-    <div class="info-row"><span style="font-weight:700">Saldo fondo reserva</span><strong style="color:var(--gold);font-size:15px">$${fmt(data.reservaNueva)}</strong></div>
+    <div class="info-row"><span style="font-weight:700">Saldo fondo reserva</span><strong style="color:var(--res);font-size:15px">$${fmt(data.reservaNueva)}</strong></div>
   </div>`;
 
   if (data.notas) {
@@ -682,8 +690,8 @@ function renderResumen(data) {
   }
 
   if (data.venc) {
-    html += `<div class="card" style="background:var(--danger-light);border-color:#e0b0b0">
-      <p style="font-size:12px;font-weight:700;color:var(--danger)">⏰ Vencimiento: ${data.venc}</p></div>`;
+    html += `<div class="card" style="background:var(--accent-light)">
+      <p style="font-size:12px;font-weight:700;color:var(--ink)">⏰ Vencimiento: ${data.venc}</p></div>`;
   }
 
   html += `<button class="btn btn-pdf" onclick="generarPDF()">📄 Descargar PDF</button>
@@ -787,11 +795,11 @@ function renderEstado() {
 
   let html = `
     <div class="resumen-grid">
-      <div class="resumen-box gold">
+      <div class="resumen-box res">
         <span class="resumen-val">+$${fmt(reservaMostrar)}</span>
         <span class="resumen-lbl">🏦 Fondo reserva</span>
       </div>
-      <div class="resumen-box ${saldoOpMostrar >= 0 ? 'accent' : 'danger'}">
+      <div class="resumen-box ${saldoOpMostrar >= 0 ? 'op' : 'danger'}">
         <span class="resumen-val">$${fmt(saldoOpMostrar)}</span>
         <span class="resumen-lbl">💼 Saldo operacional</span>
       </div>
